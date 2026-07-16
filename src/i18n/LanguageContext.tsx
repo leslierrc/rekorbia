@@ -9,7 +9,7 @@ const translations = { es, en } as const
 interface LanguageContextType {
   language: Language
   setLanguage: (lang: Language) => void
-  t: typeof es
+  t: typeof es | typeof en
 }
 
 const LanguageContext = createContext<LanguageContextType | null>(null)

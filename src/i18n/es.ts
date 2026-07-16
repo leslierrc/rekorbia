@@ -124,4 +124,4 @@ export const es = {
     copyright: '© {year} REKORBIA — BrokerOS AI. Todos los derechos reservados.',
     contact: 'Contacto',
   },
-} as const
+}

@@ -124,4 +124,4 @@ export const en = {
     copyright: '© {year} REKORBIA — BrokerOS AI. All rights reserved.',
     contact: 'Contact',
   },
-} as const
+}
