@@ -9,7 +9,7 @@ import {
   DollarSign,
   type LucideIcon,
 } from 'lucide-react'
-import { features } from '../data/content'
+import { useLanguage } from '../i18n/LanguageContext'
 
 const iconMap: Record<string, LucideIcon> = {
   Zap,
@@ -23,9 +23,10 @@ const iconMap: Record<string, LucideIcon> = {
 export function FeaturesSection() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-80px' })
+  const { t } = useLanguage()
 
   return (
-    <section id="features" ref={ref} className="relative py-32 px-4">
+    <section id="features" ref={ref} className="relative py-20 px-4 sm:py-32">
       <div className="absolute inset-0 bg-gradient-to-b from-navy-950 to-navy-900" />
 
       <div className="relative mx-auto max-w-7xl">
@@ -37,23 +38,23 @@ export function FeaturesSection() {
         >
           <div>
             <span className="text-sm font-medium uppercase tracking-[0.3em] text-orange-400">
-              Capacidades
+              {t.features.subtitle}
             </span>
-            <h2 className="font-display mt-4 text-4xl font-bold md:text-5xl">
-              Todo lo que un broker necesita.
+            <h2 className="font-display mt-4 text-3xl font-bold sm:text-4xl md:text-5xl">
+              {t.features.title}
               <br />
-              <span className="text-white/40">En un solo OS.</span>
+              <span className="text-white/40">{t.features.titleSub}</span>
             </h2>
           </div>
           <img
             src="https://images.pexels.com/photos/2199293/pexels-photo-2199293.jpeg?auto=compress&cs=tinysrgb&w=600"
-            alt="Camión en carretera"
+            alt="Truck on highway"
             className="mt-8 hidden h-32 w-48 rounded-2xl object-cover lg:block"
           />
         </motion.div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature, i) => {
+          {t.features.items.map((feature, i) => {
             const Icon = iconMap[feature.icon]
             return (
               <motion.div

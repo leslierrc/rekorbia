@@ -1,6 +1,6 @@
 import { motion, useInView } from 'framer-motion'
 import { useEffect, useRef, useState } from 'react'
-import { stats } from '../data/content'
+import { useLanguage } from '../i18n/LanguageContext'
 
 function AnimatedStat({ value, label, delay }: { value: string; label: string; delay: number }) {
   const ref = useRef(null)
@@ -49,10 +49,10 @@ function AnimatedStat({ value, label, delay }: { value: string; label: string; d
       transition={{ duration: 0.6, delay: delay / 1000 }}
       className="text-center"
     >
-      <p className="font-display text-5xl font-extrabold gradient-text md:text-6xl">
+      <p className="font-display text-4xl font-extrabold gradient-text sm:text-5xl md:text-6xl">
         {display}
       </p>
-      <p className="mt-3 text-sm text-white/50 md:text-base">{label}</p>
+      <p className="mt-3 text-xs text-white/50 sm:text-sm md:text-base">{label}</p>
     </motion.div>
   )
 }
@@ -60,9 +60,10 @@ function AnimatedStat({ value, label, delay }: { value: string; label: string; d
 export function StatsSection() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-100px' })
+  const { t } = useLanguage()
 
   return (
-    <section ref={ref} className="relative py-24 px-4">
+    <section ref={ref} className="relative py-16 px-4 sm:py-24">
       <div className="absolute inset-0 bg-navy-900" />
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent" />
 
@@ -70,10 +71,10 @@ export function StatsSection() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={isInView ? { opacity: 1 } : {}}
-          className="rounded-3xl glass-orange p-12 md:p-16"
+          className="rounded-3xl glass-orange p-6 sm:p-8 md:p-12 lg:p-16"
         >
-          <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((stat, i) => (
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            {t.stats.items.map((stat, i) => (
               <AnimatedStat
                 key={stat.label}
                 value={stat.value}
@@ -91,45 +92,40 @@ export function StatsSection() {
 export function ComparisonSection() {
   const ref = useRef(null)
   const isInView = useInView(ref, { once: true, margin: '-80px' })
-
-  const categories = [
-    { name: 'Emails & WhatsApp', manual: 135, automated: 15 },
-    { name: 'Excel & CRM', manual: 60, automated: 5 },
-    { name: 'Llamadas carriers', manual: 90, automated: 20 },
-    { name: 'Documentos', manual: 120, automated: 10 },
-    { name: 'Finanzas', manual: 105, automated: 15 },
-  ]
+  const { t } = useLanguage()
 
   return (
-    <section ref={ref} className="relative py-32 px-4">
+    <section ref={ref} className="relative py-20 px-4 sm:py-32">
       <div className="mx-auto max-w-5xl">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
-          className="mb-12 text-center"
+          className="mb-8 text-center sm:mb-12"
         >
-          <h2 className="font-display text-3xl font-bold md:text-4xl">
-            Tu día: <span className="text-red-400">705 min</span> manuales →{' '}
-            <span className="gradient-text">65 min</span> con IA
+          <h2 className="font-display text-2xl font-bold sm:text-3xl md:text-4xl">
+            {t.comparison.title} <span className="text-red-400">{t.comparison.manualMin}</span>{' '}
+            {t.comparison.manualLabel}{' '}
+            <span className="gradient-text">{t.comparison.aiMin}</span>{' '}
+            {t.comparison.aiLabel}
           </h2>
         </motion.div>
 
-        <div className="space-y-6">
-          {categories.map((cat, i) => (
+        <div className="space-y-4 sm:space-y-6">
+          {t.comparison.categories.map((cat, i) => (
             <motion.div
               key={cat.name}
               initial={{ opacity: 0, x: -20 }}
               animate={isInView ? { opacity: 1, x: 0 } : {}}
               transition={{ delay: 0.1 * i }}
-              className="rounded-2xl glass p-6"
+              className="rounded-xl glass p-4 sm:rounded-2xl sm:p-6"
             >
-              <div className="mb-3 flex justify-between text-sm">
+              <div className="mb-2 flex justify-between text-xs sm:mb-3 sm:text-sm">
                 <span className="font-medium">{cat.name}</span>
                 <span className="text-white/40">
                   {cat.manual} min → <span className="text-orange-400">{cat.automated} min</span>
                 </span>
               </div>
-              <div className="relative h-3 overflow-hidden rounded-full bg-white/5">
+              <div className="relative h-2.5 overflow-hidden rounded-full bg-white/5 sm:h-3">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={isInView ? { width: `${(cat.manual / 135) * 100}%` } : {}}
