@@ -23,7 +23,7 @@ const planAccents: Record<string, string> = {
 
 export function PricingPage() {
   const { tp } = useLanguage()
-  const { success } = useToast()
+  const { toast } = useToast()
   const currentPlan = 'Starter'
 
   const plans = [
@@ -52,7 +52,7 @@ export function PricingPage() {
   ]
 
   const handleUpgrade = (planName: string) => {
-    success(`${tp.pricingPage.changePlan}: ${planName}`)
+    toast({ type: 'success', title: `${tp.pricingPage.changePlan}: ${planName}` })
   }
 
   return (
