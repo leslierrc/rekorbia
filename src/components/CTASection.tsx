@@ -27,7 +27,7 @@ export function CTASection() {
             transition={{ duration: 0.8 }}
           >
             <img
-              src="/assets/rekorbia-logo.png"
+              src="/assets/logos/principal-sobrenegro.svg"
               alt="REKORBIA"
               className="mb-8 h-14 w-auto"
             />
@@ -143,7 +143,7 @@ export function Footer() {
     <footer className="border-t border-white/5 py-12 px-4">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 md:flex-row">
         <img
-          src="/assets/rekorbia-logo.png"
+          src="/assets/logos/principal-sobrenegro.svg"
           alt="REKORBIA"
           className="h-8 w-auto opacity-80"
         />

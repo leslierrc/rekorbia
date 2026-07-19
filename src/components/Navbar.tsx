@@ -3,6 +3,7 @@ import { useRef } from 'react'
 import { ArrowRight, Menu, X, Globe } from 'lucide-react'
 import { useState } from 'react'
 import { useLanguage } from '../i18n/LanguageContext'
+import { Link } from 'react-router-dom'
 
 export function Navbar() {
   const [open, setOpen] = useState(false)
@@ -22,7 +23,7 @@ export function Navbar() {
       <nav className="mx-auto flex max-w-7xl items-center justify-between rounded-2xl glass px-6 py-3">
         <a href="#" className="flex items-center gap-3">
           <img
-            src="/assets/rekorbia-logo.png"
+            src="/assets/logos/conicono-sobrenegro.svg"
             alt="REKORBIA"
             className="h-8 w-auto object-contain"
           />
@@ -48,13 +49,13 @@ export function Navbar() {
             {language === 'es' ? 'EN' : 'ES'}
           </button>
 
-          <a
-            href="#contacto"
+          <Link
+            to="/login"
             className="inline-flex items-center gap-2 rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-orange-400 hover:shadow-lg hover:shadow-orange-500/25"
           >
             {t.nav.cta}
             <ArrowRight className="h-4 w-4" />
-          </a>
+          </Link>
         </div>
 
         <div className="flex items-center gap-3 md:hidden">
@@ -93,14 +94,14 @@ export function Navbar() {
               {link.label}
             </a>
           ))}
-          <a
-            href="#contacto"
+          <Link
+            to="/login"
             onClick={() => setOpen(false)}
             className="mt-4 flex items-center justify-center gap-2 rounded-full bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white"
           >
             {t.nav.cta}
             <ArrowRight className="h-4 w-4" />
-          </a>
+          </Link>
         </motion.div>
       )}
     </motion.header>
@@ -142,7 +143,7 @@ export function Hero() {
           className="mb-8"
         >
           <img
-            src="/assets/rekorbia-logo.png"
+            src="/assets/logos/conicono-sobrenegro.svg"
             alt="REKORBIA"
             className="mx-auto h-16 md:h-24 w-auto object-contain drop-shadow-2xl"
           />
@@ -183,13 +184,13 @@ export function Hero() {
           transition={{ delay: 0.9, duration: 0.8 }}
           className="mt-10 flex flex-col gap-4 sm:flex-row"
         >
-          <a
-            href="#contacto"
+          <Link
+            to="/login"
             className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-500 px-8 py-4 text-base font-semibold text-white transition-all hover:bg-orange-400 hover:shadow-xl hover:shadow-orange-500/30"
           >
             {t.hero.ctaPrimary}
             <ArrowRight className="h-5 w-5" />
-          </a>
+          </Link>
           <a
             href="#problema"
             className="inline-flex items-center justify-center gap-2 rounded-full glass px-8 py-4 text-base font-semibold text-white/80 transition-all hover:bg-white/10 hover:text-white"

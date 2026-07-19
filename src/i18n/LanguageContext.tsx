@@ -1,15 +1,19 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { es } from './es'
 import { en } from './en'
+import { platformEs } from '../platform/i18n/es'
+import { platformEn } from '../platform/i18n/en'
 
 export type Language = 'es' | 'en'
 
 const translations = { es, en } as const
+const platformTranslations = { es: platformEs, en: platformEn } as const
 
 interface LanguageContextType {
   language: Language
   setLanguage: (lang: Language) => void
   t: typeof es | typeof en
+  tp: typeof platformEs | typeof platformEn
 }
 
 const LanguageContext = createContext<LanguageContextType | null>(null)
@@ -28,7 +32,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage: handleChange, t: translations[language] }}>
+    <LanguageContext.Provider value={{ language, setLanguage: handleChange, t: translations[language], tp: platformTranslations[language] }}>
       {children}
     </LanguageContext.Provider>
   )

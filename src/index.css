@@ -9,8 +9,8 @@
   --color-orange-500: #ff6b2c;
   --color-orange-400: #ff8347;
   --color-orange-300: #ffa06b;
-  --font-display: "Syne", sans-serif;
-  --font-body: "DM Sans", sans-serif;
+  --font-display: "Genos", sans-serif;
+  --font-body: "Montserrat", sans-serif;
 }
 
 * {
@@ -37,6 +37,13 @@ body {
 
 .font-display {
   font-family: var(--font-display);
+}
+
+@media (max-width: 640px) {
+  .font-display {
+    letter-spacing: 0.01em;
+    line-height: 1.15;
+  }
 }
 
 .gradient-text {
@@ -73,4 +80,47 @@ body {
 
 .animate-pulse-glow {
   animation: pulse-glow 4s ease-in-out infinite;
+}
+
+/* Platform scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Platform-specific */
+select option {
+  background: #151d35;
+  color: #e8ecf4;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.5);
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  color: #e8ecf4;
+}
+
+/* Smooth page transitions */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
 }
