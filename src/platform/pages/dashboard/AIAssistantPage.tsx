@@ -1,402 +1,542 @@
-import { useState, useRef, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { Send, Sparkles, Bot, User, Truck, FileText, DollarSign, MapPin, ArrowRight } from 'lucide-react'
-import { mockLoads, mockCarriers, type AIChatMessage } from '../../data/mock'
-import { useLanguage } from '../../../i18n/LanguageContext'
-import { useToast } from '../../components/Toast'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Send, Sparkles, Bot, User, Mic, Square, Paperclip, FileSpreadsheet, X, Play, Pause } from 'lucide-react'
+import { streamChat, type ChatMessage } from '../../ai/githubModels'
 
-interface AIResponse {
-  content: string
-  actions?: { label: string; path: string; icon?: typeof Truck }[]
+interface AttachedFile {
+  name: string
+  size: number
+  type: string
+  content?: string
 }
 
-function getAIResponse(input: string, language: string): AIResponse {
-  const lower = input.toLowerCase()
-
-  if (lower.includes('create') || lower.includes('new load') || lower.includes('nueva carga') || lower.includes('crear carga')) {
-    return {
-      content: language === 'es'
-        ? `Detecté los siguientes detalles:
-
-**Detalles de la Carga:**
-- Origen: Dallas, TX
-- Destino: Atlanta, GA
-- Peso: 43,000 lbs
-- Equipo: Dry Van
-- Recolección: Mañana (2026-07-20)
-
-**Precios Sugeridos:**
-- Tarifa de Compra: $1,850
-- Tarifa de Venta Sugerida: $2,450
-- Margen Estimado: $600
-
-¿Quieres que cree esta carga y empiece a buscar transportistas?`
-        : `I detected the following details:
-
-**Load Details:**
-- Origin: Dallas, TX
-- Destination: Atlanta, GA
-- Weight: 43,000 lbs
-- Equipment: Dry Van
-- Pickup: Tomorrow (2026-07-20)
-
-**Suggested Pricing:**
-- Buy Rate: $1,850
-- Suggested Sell: $2,450
-- Estimated Margin: $600
-
-Would you like me to create this load and start finding carriers?`,
-      actions: [
-        { label: language === 'es' ? 'Crear Carga' : 'Create Load', path: '/app/loads/new', icon: Truck },
-      ],
-    }
-  }
-
-  if (lower.includes('price') || lower.includes('rate') || lower.includes('charge') || lower.includes('quote') || lower.includes('cotizar') || lower.includes('precio')) {
-    return {
-      content: language === 'es'
-        ? `Análisis de precios basado en datos actuales del mercado:
-
-**Ruta:** Dallas, TX → Atlanta, GA (781 millas)
-
-**Análisis de Mercado:**
-- Promedio actual del mercado: $2,380
-- Tu promedio histórico: $2,420
-- Recargo de combustible: +$85
-
-**Recomendación:**
-- Tarifa de Venta Sugerida: $2,450
-- Tarifa Objetivo de Compra: $1,850
-- Margen Esperado: $600 (24.5%)
-
-Esta ruta se ha mantenido estable esta semana. Te recomiendo reservar pronto ya que las tarifas pueden subir con la demanda del fin de semana.`
-        : `Pricing analysis based on current market data:
-
-**Route:** Dallas, TX → Atlanta, GA (781 miles)
-
-**Market Analysis:**
-- Current market average: $2,380
-- Your historical average: $2,420
-- Fuel surcharge: +$85
-
-**Recommendation:**
-- Suggested Sell Rate: $2,450
-- Target Buy Rate: $1,850
-- Expected Margin: $600 (24.5%)
-
-This route has been steady this week. I'd recommend booking soon as rates may increase with weekend demand.`,
-    }
-  }
-
-  if (lower.includes('track') || lower.includes('status') || lower.includes('active') || lower.includes('where') || lower.includes('rastreo') || lower.includes('seguimiento')) {
-    const active = mockLoads.filter((l) => ['dispatched', 'in_transit'].includes(l.status))
-    const list = active.map((l) => `- #${l.loadNumber}: ${l.origin} → ${l.destination} (${l.tracking}%)`).join('\n')
-    return {
-      content: language === 'es'
-        ? `Tus cargas activas:\n\n${list}\n\n¿Quieres ver los detalles de alguna carga específica?`
-        : `Your active loads:\n\n${list}\n\nWould you like to see details for a specific load?`,
-      actions: active.slice(0, 2).map((l) => ({
-        label: `#${l.loadNumber}`,
-        path: `/app/loads/${l.id}`,
-        icon: Truck,
-      })),
-    }
-  }
-
-  if (lower.includes('invoice') || lower.includes('bill') || lower.includes('factura')) {
-    return {
-      content: language === 'es'
-        ? `Prepararé la factura para la carga #1587:
-
-**Vista Previa:**
-- Número: INV-2026-0090
-- Cliente: ABC Logistics
-- Carga: #1587 (Dallas → Atlanta)
-- Monto: $2,450.00
-- Vence: 30 días desde emisión
-
-¿Qué te gustaría hacer?`
-        : `I'll prepare the invoice for Load #1587:
-
-**Invoice Preview:**
-- Invoice #: INV-2026-0090
-- Customer: ABC Logistics
-- Load: #1587 (Dallas → Atlanta)
-- Amount: $2,450.00
-- Due: 30 days from issue
-
-What would you like to do?`,
-      actions: [
-        { label: language === 'es' ? 'Ver Facturación' : 'View Invoicing', path: '/app/invoicing', icon: FileText },
-      ],
-    }
-  }
-
-  if (lower.includes('carrier') || lower.includes('transportista') || lower.includes('find carrier') || lower.includes('buscar transportista')) {
-    const verified = mockCarriers.filter((c) => c.status === 'verified')
-    const list = verified.slice(0, 3).map((c) => `- ${c.name} (${c.mcNumber}) — ${c.safetyRating} — ⭐ ${c.rating}`).join('\n')
-    return {
-      content: language === 'es'
-        ? `Transportistas verificados disponibles:\n\n${list}\n\n¿Quieres ver la lista completa o verificar alguno específico?`
-        : `Verified carriers available:\n\n${list}\n\nWould you like to see the full list or verify a specific one?`,
-      actions: [
-        { label: language === 'es' ? 'Ver Transportistas' : 'View Carriers', path: '/app/carriers', icon: Truck },
-      ],
-    }
-  }
-
-  if (lower.includes('customer') || lower.includes('cliente') || lower.includes('crm')) {
-    return {
-      content: language === 'es'
-        ? `Puedo ayudarte con clientes. ¿Qué necesitas?
-        - Ver la lista de clientes
-        - Crear un nuevo cliente
-        - Ver el historial de un cliente específico`
-        : `I can help you with customers. What do you need?
-        - View the customer list
-        - Create a new customer
-        - View a specific customer's history`,
-      actions: [
-        { label: language === 'es' ? 'Ver CRM' : 'View CRM', path: '/app/crm', icon: User },
-      ],
-    }
-  }
-
-  return {
-    content: language === 'es'
-      ? `Entiendo que preguntas sobre "${input}". Puedo ayudarte con:
-
-- **Cargas** — Crear, modificar o buscar cargas
-- **Transportistas** — Buscar, verificar o contactar transportistas
-- **Precios** — Obtener tarifas de mercado y recomendaciones de margen
-- **Rastreo** — Verificar estado de cargas activas
-- **Documentos** — Generar facturas, BOLs, confirmaciones de tarifa
-- **Clientes** — Gestionar relaciones con clientes
-
-¿Qué te gustaría hacer?`
-      : `I understand you're asking about "${input}". I can help you with:
-
-- **Loads** — Create, modify, or find loads
-- **Carriers** — Search, verify, or contact carriers
-- **Pricing** — Get market rates and margin recommendations
-- **Tracking** — Check status of active loads
-- **Documents** — Generate invoices, BOLs, rate confirmations
-- **Communication** — Draft emails or messages to customers
-
-What would you like to do?`,
-  }
+interface AudioMessage {
+  url: string
+  duration: number
+  transcript?: string
 }
+
+// Extend ChatMessage to support audio
+interface AppChatMessage extends ChatMessage {
+  audio?: AudioMessage
+}
+
+const WAVE_BARS = 24
 
 export function AIAssistantPage() {
-  const navigate = useNavigate()
-  const { tp, language } = useLanguage()
-  const { toast } = useToast()
-  const [messages, setMessages] = useState<AIChatMessage[]>([
-    {
-      id: '1',
-      role: 'assistant',
-      content: language === 'es'
-        ? `Buenos Días Lesly.\n\nHoy encontré:\n\n✓ 8 cargas nuevas que requieren atención\n✓ 3 transportistas esperando verificación\n✓ 2 facturas listas para enviar\n✓ 1 seguro por vencer\n\n¿Qué te gustaría hacer?`
-        : `Good Morning Lesly.\n\nToday I found:\n\n✓ 8 new loads requiring attention\n✓ 3 carriers waiting for verification\n✓ 2 invoices ready to send\n✓ 1 insurance expiration alert\n\nWhat would you like to do?`,
-      timestamp: new Date().toISOString(),
-    },
-  ])
+  const [messages, setMessages] = useState<AppChatMessage[]>([])
   const [input, setInput] = useState('')
-  const [isTyping, setIsTyping] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [waveLevels, setWaveLevels] = useState<number[]>(new Array(WAVE_BARS).fill(0.1))
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [playingAudio, setPlayingAudio] = useState<string | null>(null)
+  const chatEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const streamingRef = useRef(false)
 
-  const quickActions = [
-    { icon: Truck, label: tp.loads.newLoad, prompt: 'Create a new load from Dallas TX to Atlanta GA, 43000 lbs Dry Van, pickup tomorrow' },
-    { icon: DollarSign, label: tp.loads.rate, prompt: 'What should I charge for a Dallas to Atlanta Dry Van load, 43000 lbs?' },
-    { icon: MapPin, label: tp.sidebar.tracking, prompt: 'Show me the status of all active loads' },
-    { icon: FileText, label: tp.dashboard.sendInvoice, prompt: 'Generate an invoice for Load #1587' },
-  ]
+  // Recording refs
+  const streamRef = useRef<MediaStream | null>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const rafRef = useRef<number>(0)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const recognitionRef = useRef<any>(null)
+  const transcriptRef = useRef('')
+  const recordingStartTimeRef = useRef(0)
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
+  const scrollToBottom = useCallback(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [])
+
+  useEffect(() => { scrollToBottom() }, [messages, scrollToBottom])
+  useEffect(() => { streamingRef.current = isStreaming }, [isStreaming])
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const handleSend = async (text?: string) => {
-    const content = text || input
-    if (!content.trim()) return
-
-    const userMsg: AIChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: content.trim(),
-      timestamp: new Date().toISOString(),
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px'
     }
+  }, [input])
 
-    setMessages((prev) => [...prev, userMsg])
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      audioCtxRef.current?.close()
+    }
+  }, [])
+
+  const buildMessage = useCallback((text: string): string => {
+    if (attachedFiles.length === 0) return text
+    const fileInfo = attachedFiles.map(f => `[Archivo: ${f.name} (${f.type}, ${Math.round(f.size / 1024)}KB)]`).join('\n')
+    const fileContent = attachedFiles.filter(f => f.content).map(f => `\n--- Contenido de ${f.name} ---\n${f.content}`).join('')
+    return `${text}\n\n${fileInfo}${fileContent}`
+  }, [attachedFiles])
+
+  // ---- Send message ----
+  const handleSend = useCallback(async (text: string, audio?: AudioMessage) => {
+    if (!text.trim() || streamingRef.current) return
+
+    const content = buildMessage(text)
+    const userMessage: AppChatMessage = { role: 'user', content, audio }
+    const newMessages = [...messages, userMessage]
+    setMessages(newMessages)
     setInput('')
-    setIsTyping(true)
+    setAttachedFiles([])
+    setIsStreaming(true)
 
-    await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800))
+    setMessages([...newMessages, { role: 'assistant', content: '' }])
+    let fullContent = ''
 
-    const response = getAIResponse(content, language)
-    const aiMsg: AIChatMessage = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: response.content,
-      timestamp: new Date().toISOString(),
+    try {
+      const stream = streamChat(newMessages)
+      for await (const chunk of stream) {
+        fullContent += chunk
+        setMessages([...newMessages, { role: 'assistant', content: fullContent }])
+      }
+    } catch {
+      fullContent = 'Error de conexion. Intenta de nuevo.'
+      setMessages([...newMessages, { role: 'assistant', content: fullContent }])
     }
 
-    setMessages((prev) => [...prev, { ...aiMsg, _actions: response.actions } as AIChatMessage & { _actions?: typeof response.actions }])
-    setIsTyping(false)
-  }
+    setIsStreaming(false)
+  }, [messages, buildMessage])
 
-  const handleAction = (path: string, label: string) => {
-    toast({ type: 'success', title: language === 'es' ? 'Abriendo...' : 'Opening...', description: label })
-    navigate(path)
-  }
+  // ---- Waveform animation ----
+  const animateWaveform = useCallback(() => {
+    if (!analyserRef.current) return
+    const analyser = analyserRef.current
+    const data = new Uint8Array(analyser.frequencyBinCount)
+
+    const tick = () => {
+      analyser.getByteFrequencyData(data)
+      const step = Math.floor(data.length / WAVE_BARS)
+      const levels = Array.from({ length: WAVE_BARS }, (_, i) => {
+        const val = data[i * step] || 0
+        return Math.max(0.08, val / 255)
+      })
+      setWaveLevels(levels)
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    tick()
+  }, [])
+
+  // ---- Start recording ----
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      recordingStartTimeRef.current = Date.now()
+
+      // AudioContext + AnalyserNode for waveform
+      const audioCtx = new AudioContext()
+      audioCtxRef.current = audioCtx
+      const source = audioCtx.createMediaStreamSource(stream)
+      const analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 128
+      source.connect(analyser)
+      analyserRef.current = analyser
+      animateWaveform()
+
+      // MediaRecorder to actually save the audio
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
+      chunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data)
+      }
+
+      recorder.start()
+      recorderRef.current = recorder
+
+      // Timer
+      setRecordingTime(0)
+      timerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
+      }, 1000)
+
+      // SpeechRecognition in parallel for live transcription
+      transcriptRef.current = ''
+      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      if (SR) {
+        const recognition = new SR()
+        recognition.lang = 'es-ES'
+        recognition.continuous = true
+        recognition.interimResults = true
+
+        recognition.onresult = (event: any) => {
+          let interim = ''
+          let final = ''
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const t = event.results[i][0].transcript
+            if (event.results[i].isFinal) {
+              final += t
+            } else {
+              interim += t
+            }
+          }
+          if (final) transcriptRef.current += final
+          setInput(transcriptRef.current + interim)
+        }
+
+        recognition.onerror = () => {}
+        recognition.onend = () => {}
+        try {
+          recognition.start()
+          recognitionRef.current = recognition
+        } catch { /* already running */ }
+      }
+
+      setIsRecording(true)
+    } catch {
+      alert('No se pudo acceder al microfono. Permisos denegados.')
+    }
+  }, [animateWaveform])
+
+  // ---- Stop recording ----
+  const stopRecording = useCallback(() => {
+    const duration = Math.round((Date.now() - recordingStartTimeRef.current) / 1000)
+    const transcript = transcriptRef.current.trim()
+
+    // Stop timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+
+    // Stop waveform
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
+    }
+    setWaveLevels(new Array(WAVE_BARS).fill(0.1))
+
+    // Stop SpeechRecognition
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop() } catch { /* ignore */ }
+      recognitionRef.current = null
+    }
+
+    // Stop MediaRecorder and save the blob
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      recorderRef.current.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const url = URL.createObjectURL(blob)
+
+        // Send as audio message
+        const audioData: AudioMessage = {
+          url,
+          duration,
+          transcript: transcript || undefined,
+        }
+
+        const textToSend = transcript || '[Audio message]'
+        handleSend(textToSend, audioData)
+      }
+      recorderRef.current.stop()
+    } else {
+      // No recorder — just send transcript
+      if (transcript) {
+        handleSend(transcript)
+      }
+    }
+
+    // Stop mic stream
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    analyserRef.current = null
+    audioCtxRef.current?.close()
+    audioCtxRef.current = null
+    recorderRef.current = null
+
+    setIsRecording(false)
+    setInput('')
+    setRecordingTime(0)
+  }, [handleSend])
+
+  const toggleRecording = useCallback(() => {
+    if (isRecording) {
+      stopRecording()
+    } else {
+      startRecording()
+    }
+  }, [isRecording, startRecording, stopRecording])
+
+  // ---- File upload ----
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+
+    Array.from(files).forEach(file => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const content = reader.result as string
+        setAttachedFiles(prev => [...prev, {
+          name: file.name,
+          size: file.size,
+          type: file.type || file.name.split('.').pop() || 'unknown',
+          content: content.slice(0, 8000),
+        }])
+      }
+      if (file.name.endsWith('.csv') || file.name.endsWith('.txt') || file.name.endsWith('.json')) {
+        reader.readAsText(file)
+      } else {
+        setAttachedFiles(prev => [...prev, {
+          name: file.name,
+          size: file.size,
+          type: file.type || file.name.split('.').pop() || 'unknown',
+        }])
+      }
+    })
+
+    e.target.value = ''
+  }, [])
+
+  const removeFile = useCallback((index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index))
+  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      if (input.trim()) handleSend(input)
     }
   }
 
-  const renderMessage = (msg: AIChatMessage & { _actions?: { label: string; path: string; icon?: typeof Truck }[] }) => (
-    <motion.div
-      key={msg.id}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
-    >
-      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
-        msg.role === 'assistant' ? 'bg-orange-500/15' : 'bg-white/10'
-      }`}>
-        {msg.role === 'assistant' ? <Bot className="h-4 w-4 text-orange-400" /> : <User className="h-4 w-4 text-white/60" />}
-      </div>
-      <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-        msg.role === 'assistant'
-          ? 'rounded-tl-sm border border-white/[0.06] bg-white/[0.03]'
-          : 'rounded-tr-sm bg-orange-500/10 border border-orange-500/20'
-      }`}>
-        <div className="whitespace-pre-wrap text-sm leading-relaxed text-white/70">
-          {msg.content.split('\n').map((line, j) => {
-            if (line.startsWith('**') && line.endsWith('**'))
-              return <p key={j} className="mt-2 font-semibold text-white/90">{line.replace(/\*\*/g, '')}</p>
-            if (line.startsWith('- '))
-              return <p key={j} className="ml-3 text-white/60">• {line.slice(2)}</p>
-            if (line.startsWith('|'))
-              return <p key={j} className="font-mono text-[11px] text-white/40">{line}</p>
-            if (line.trim() === '') return <br key={j} />
-            return <p key={j}>{line}</p>
-          })}
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, '0')
+    const s = (seconds % 60).toString().padStart(2, '0')
+    return `${m}:${s}`
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col -m-4 lg:-m-6">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-600">
+            <Sparkles className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="font-display text-lg font-bold text-white">REKORBIA AI</h1>
+            <p className="text-xs text-white/40">GPT-4o-mini · Voice + Files</p>
+          </div>
         </div>
-        {msg._actions && msg._actions.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {msg._actions.map((action) => {
-              const Icon = action.icon || ArrowRight
-              return (
-                <button
-                  key={action.path}
-                  type="button"
-                  onClick={() => handleAction(action.path, action.label)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-orange-500/10 border border-orange-500/20 px-3 py-2 text-xs font-medium text-orange-400 transition-all hover:bg-orange-500/20"
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {action.label}
-                  <ArrowRight className="h-3 w-3" />
-                </button>
-              )
-            })}
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        {messages.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center">
+            <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="mb-8 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600">
+                <Sparkles className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="font-display text-2xl font-bold text-white">How can I help you today?</h2>
+              <p className="mt-2 text-sm text-white/40">Type, record audio, or upload a file.</p>
+            </motion.div>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-3xl space-y-6">
+            {messages.map((msg, i) => (
+              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {msg.role === 'assistant' && (
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500/20">
+                    <Bot className="h-4 w-4 text-orange-400" />
+                  </div>
+                )}
+                <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  msg.role === 'user' ? 'bg-orange-500 text-white' : 'border border-white/[0.06] bg-white/[0.03] text-white/80'
+                }`}>
+                  {/* Audio player in message */}
+                  {msg.audio && (
+                    <AudioPlayer
+                      url={msg.audio.url}
+                      duration={msg.audio.duration}
+                      isPlaying={playingAudio === msg.audio.url}
+                      onToggle={() => setPlayingAudio(playingAudio === msg.audio.url ? null : msg.audio!.url)}
+                    />
+                  )}
+                  {msg.audio && msg.content !== '[Audio message]' && <div className="mt-1" />}
+                  <div className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }} />
+                  {msg.role === 'assistant' && msg.content && i === messages.length - 1 && isStreaming && (
+                    <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-orange-400" />
+                  )}
+                </div>
+                {msg.role === 'user' && (
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
+                    <User className="h-4 w-4 text-white/60" />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+            <div ref={chatEndRef} />
           </div>
         )}
       </div>
-    </motion.div>
-  )
 
-  return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-        className="flex items-center gap-3 border-b border-white/[0.06] px-1 py-4"
-      >
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15">
-          <Sparkles className="h-5 w-5 text-orange-400" />
-        </div>
-        <div>
-          <h1 className="font-display text-lg font-bold text-white">{tp.sidebar.ai}</h1>
-          <p className="text-xs text-white/40">
-            {language === 'es' ? 'Tu copiloto inteligente para operaciones de freight' : 'Your intelligent copilot for freight operations'}
-          </p>
-        </div>
-      </motion.div>
-
-      <div className="flex-1 overflow-y-auto px-1 py-6">
-        <div className="mx-auto max-w-3xl space-y-6">
-          {messages.map((msg, i) => (
-            <div key={msg.id}>
-              {i < 2 || (i % 2 === 0) ? renderMessage(msg as AIChatMessage & { _actions?: { label: string; path: string; icon?: typeof Truck }[] }) : renderMessage(msg as AIChatMessage & { _actions?: { label: string; path: string; icon?: typeof Truck }[] })}
-            </div>
-          ))}
-
-          {isTyping && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-500/15">
-                <Bot className="h-4 w-4 text-orange-400" />
-              </div>
-              <div className="rounded-2xl rounded-tl-sm border border-white/[0.06] bg-white/[0.03] px-4 py-3">
-                <div className="flex gap-1.5">
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400/50" style={{ animationDelay: '0ms' }} />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400/50" style={{ animationDelay: '150ms' }} />
-                  <span className="h-2 w-2 animate-bounce rounded-full bg-orange-400/50" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      {messages.length <= 1 && (
-        <div className="mx-auto max-w-3xl pb-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {quickActions.map((action) => {
-              const Icon = action.icon
-              return (
-                <button key={action.label} type="button" onClick={() => handleSend(action.prompt)}
-                  className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-center transition-all hover:border-orange-500/20 hover:bg-orange-500/5"
-                >
-                  <Icon className="h-5 w-5 text-orange-400/70" />
-                  <span className="text-xs text-white/50">{action.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      <div className="border-t border-white/[0.06] px-1 py-4">
+      {/* Input Area */}
+      <div className="border-t border-white/[0.06] px-6 py-3">
         <div className="mx-auto max-w-3xl">
-          <div className="flex items-end gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3 focus-within:border-orange-500/30">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={language === 'es' ? 'Pregúntale a Rekorbia cualquier cosa...' : 'Ask Rekorbia anything...'}
-              rows={1}
-              className="max-h-32 min-h-[24px] flex-1 resize-none bg-transparent text-sm text-white/80 outline-none placeholder:text-white/25"
-            />
-            <button type="button" onClick={() => handleSend()} disabled={!input.trim() || isTyping}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white transition-all hover:bg-orange-400 disabled:opacity-30"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </div>
-          <p className="mt-2 text-center text-[11px] text-white/20">
-            {language === 'es' ? 'REKORBIA AI puede cometer errores. Siempre verifica la información importante.' : 'REKORBIA AI can make mistakes. Always verify important information.'}
-          </p>
+          {/* Attached files */}
+          <AnimatePresence>
+            {attachedFiles.length > 0 && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                className="mb-2 flex flex-wrap gap-2 overflow-hidden">
+                {attachedFiles.map((file, i) => (
+                  <motion.div key={i} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                    className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-1.5">
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-blue-400" />
+                    <span className="text-xs text-white/60">{file.name}</span>
+                    <span className="text-[10px] text-white/30">{Math.round(file.size / 1024)}KB</span>
+                    <button type="button" onClick={() => removeFile(i)} className="text-white/30 hover:text-red-400 transition-colors">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </motion.div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Recording UI */}
+          <AnimatePresence>
+            {isRecording && (
+              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                className="mb-3 overflow-hidden">
+                <div className="flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/5 px-4 py-3">
+                  <button type="button" onClick={stopRecording}
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/30 hover:bg-red-400 transition-colors">
+                    <Square className="h-4 w-4" />
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="font-mono text-sm font-medium text-red-400">{formatTime(recordingTime)}</span>
+                  </div>
+                  <div className="flex flex-1 items-center justify-center gap-[2px]">
+                    {waveLevels.map((level, i) => (
+                      <div key={i}
+                        className="w-[3px] rounded-full bg-red-400 transition-[height] duration-75"
+                        style={{ height: `${Math.max(4, level * 36)}px` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {transcriptRef.current && (
+                  <p className="mt-1 px-4 text-xs text-white/30 italic truncate">{transcriptRef.current}</p>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Input bar */}
+          {!isRecording && (
+            <div className="flex items-end gap-1.5 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-2">
+              <input ref={fileInputRef} type="file" className="hidden" accept=".csv,.xlsx,.xls,.txt,.json,.pdf" multiple
+                onChange={handleFileUpload} />
+              <button type="button" onClick={() => fileInputRef.current?.click()}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70 transition-all"
+                title="Upload file">
+                <Paperclip className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={toggleRecording}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/70 transition-all"
+                title="Record voice">
+                <Mic className="h-4 w-4" />
+              </button>
+              <textarea ref={textareaRef} value={input}
+                onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                placeholder="Escribe un mensaje..."
+                rows={1}
+                className="flex-1 resize-none bg-transparent px-3 py-2 text-sm text-white placeholder:text-white/20 outline-none" />
+              <button type="button" onClick={() => input.trim() && handleSend(input)}
+                disabled={!input.trim() || isStreaming}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-orange-500 text-white transition-all hover:bg-orange-400 disabled:opacity-30">
+                {isStreaming
+                  ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  : <Send className="h-4 w-4" />
+                }
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
   )
+}
+
+// ---- Audio Player Component ----
+function AudioPlayer({ url, duration, isPlaying, onToggle }: {
+  url: string
+  duration: number
+  isPlaying: boolean
+  onToggle: () => void
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [progress, setProgress] = useState(0)
+
+  useEffect(() => {
+    if (!audioRef.current) {
+      audioRef.current = new Audio(url)
+      audioRef.current.addEventListener('timeupdate', () => {
+        if (audioRef.current) {
+          setProgress(audioRef.current.currentTime / audioRef.current.duration)
+        }
+      })
+      audioRef.current.addEventListener('ended', () => {
+        setProgress(0)
+        onToggle()
+      })
+    }
+    return () => {
+      audioRef.current?.pause()
+      audioRef.current = null
+    }
+  }, [url, onToggle])
+
+  useEffect(() => {
+    if (!audioRef.current) return
+    if (isPlaying) {
+      audioRef.current.play()
+    } else {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      setProgress(0)
+    }
+  }, [isPlaying])
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2">
+      <button type="button" onClick={onToggle}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors">
+        {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 ml-0.5" />}
+      </button>
+      {/* Progress bar */}
+      <div className="relative h-1 flex-1 rounded-full bg-white/10 overflow-hidden">
+        <div className="absolute inset-y-0 left-0 rounded-full bg-white/40 transition-[width] duration-100"
+          style={{ width: `${progress * 100}%` }} />
+      </div>
+      <span className="text-[10px] text-white/40 font-mono">{formatDuration(duration)}</span>
+    </div>
+  )
+}
+
+function formatDuration(seconds: number) {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0')
+  const s = (seconds % 60).toString().padStart(2, '0')
+  return `${m}:${s}`
+}
+
+function formatMessage(content: string): string {
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>')
+    .replace(/`(.*?)`/g, '<code class="rounded bg-white/5 px-1 py-0.5 text-orange-300">$1</code>')
+    .replace(/\n/g, '<br />')
 }
