@@ -16,6 +16,7 @@ import {
   Globe,
   BarChart3,
   CreditCard,
+  Inbox,
 } from 'lucide-react'
 import { useSidebarStore, useAuthStore } from '../store'
 import { clsx } from 'clsx'
@@ -33,6 +34,7 @@ export function Sidebar() {
   const navItems = [
     { to: '/app', icon: LayoutDashboard, label: tp.sidebar.dashboard, end: true },
     { to: '/app/ai', icon: MessageSquare, label: tp.sidebar.ai },
+    { to: '/app/ai-inbox', icon: Inbox, label: tp.sidebar.aiInbox },
     { to: '/app/loads', icon: Truck, label: tp.sidebar.loads },
     { to: '/app/crm', icon: Users, label: tp.sidebar.crm },
     { to: '/app/carriers', icon: Building2, label: tp.sidebar.carriers },

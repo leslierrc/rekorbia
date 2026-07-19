@@ -14,6 +14,7 @@ import { LoginPage } from './platform/pages/auth/LoginPage'
 import { SignupPage } from './platform/pages/auth/SignupPage'
 import { DashboardPage } from './platform/pages/dashboard/DashboardPage'
 import { AIAssistantPage } from './platform/pages/dashboard/AIAssistantPage'
+import { AIInboxPage } from './platform/pages/dashboard/AIInboxPage'
 import { AnalyticsPage } from './platform/pages/dashboard/AnalyticsPage'
 import { LoadsListPage } from './platform/pages/loads/LoadsListPage'
 import { LoadDetailPage } from './platform/pages/loads/LoadDetailPage'
@@ -61,6 +62,7 @@ export default function App() {
               <Route path="/app" element={<AppLayout />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="ai" element={<AIAssistantPage />} />
+                <Route path="ai-inbox" element={<AIInboxPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="loads" element={<LoadsListPage />} />
                 <Route path="loads/new" element={<CreateLoadPage />} />

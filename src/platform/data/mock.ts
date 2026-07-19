@@ -169,3 +169,125 @@ export const mockNotifications: Notification[] = [
 export const mockAIChat: AIChatMessage[] = [
   { id: '1', role: 'assistant', content: "Good Morning Lesly.\n\nToday I found:\n\n✓ 8 new loads requiring attention\n✓ 3 carriers waiting for verification\n✓ 2 invoices ready to send\n✓ 1 insurance expiration alert\n\nWhat would you like to do?", timestamp: '2026-07-19T07:00:00Z' },
 ]
+
+export interface AIInboxItem {
+  id: string
+  emailFrom: string
+  emailSubject: string
+  emailPreview: string
+  emailDate: string
+  detectedLoad: {
+    origin: string
+    originState: string
+    destination: string
+    destinationState: string
+    weight: number
+    equipment: string
+    commodity: string
+    suggestedPrice: number
+    confidence: number
+  } | null
+  status: 'detected' | 'processing' | 'ready' | 'created' | 'ignored'
+  carrierCandidates: number
+}
+
+export interface WorkflowEvent {
+  id: string
+  loadId: string
+  loadNumber: number
+  type: 'email_received' | 'ai_created' | 'carrier_suggested' | 'carrier_assigned' | 'rate_conf_sent' | 'rate_conf_accepted' | 'pickup' | 'in_transit' | 'delivered' | 'pod_received' | 'invoice_generated' | 'payment_received'
+  title: string
+  description: string
+  timestamp: string
+  icon: string
+  aiGenerated: boolean
+}
+
+export interface CarrierAI {
+  id: string
+  carrierId: string
+  acceptanceRate: number
+  avgDelay: number
+  avgNegotiation: number
+  onTimeRate: number
+  totalTrips: number
+  lastIncidents: number
+  aiRecommendation: 'excellent' | 'good' | 'caution' | 'avoid'
+  aiNote: string
+}
+
+export interface CustomerAI {
+  id: string
+  customerId: string
+  relationshipScore: number
+  avgMargin: number
+  avgPaymentDays: number
+  totalRevenue: number
+  preferredEquipment: string
+  topRoutes: string[]
+  aiNote: string
+  priceRecommendation: number
+  priceConfidence: number
+}
+
+export interface AnalyticsInsight {
+  id: string
+  type: 'trend' | 'alert' | 'recommendation' | 'opportunity'
+  title: string
+  description: string
+  impact: 'high' | 'medium' | 'low'
+  metric?: string
+  change?: string
+}
+
+export const mockAIInbox: AIInboxItem[] = [
+  { id: '1', emailFrom: 'james@gulfshipping.com', emailSubject: 'Need dry van Dallas to Atlanta Thursday', emailPreview: 'Hi, we have a 43000 lb food products load needing pickup Thursday AM. Dallas TX to Atlanta GA. Let me know your best rate.', emailDate: '2026-07-19T07:15:00Z', detectedLoad: { origin: 'Dallas, TX', originState: 'TX', destination: 'Atlanta, GA', destinationState: 'GA', weight: 43000, equipment: 'Dry Van', commodity: 'Food Products', suggestedPrice: 2450, confidence: 0.95 }, status: 'ready', carrierCandidates: 3 },
+  { id: '2', emailFrom: 'maria@pacificfreight.com', emailSubject: 'Re: LA to Phoenix flatbed quote', emailPreview: 'We need a flatbed for 28000 lbs electronics from Los Angeles to Phoenix. Pickup Monday. What can you do?', emailDate: '2026-07-19T06:45:00Z', detectedLoad: { origin: 'Los Angeles, CA', originState: 'CA', destination: 'Phoenix, AZ', destinationState: 'AZ', weight: 28000, equipment: 'Flatbed', commodity: 'Electronics', suggestedPrice: 1850, confidence: 0.88 }, status: 'ready', carrierCandidates: 2 },
+  { id: '3', emailFrom: 'robert@abclogistics.com', emailSubject: 'New lane: Houston to Chicago', emailPreview: 'Got a new shipper. Need flatbed for 38000 lbs industrial parts. Houston TX to Chicago IL. Pickup ASAP.', emailDate: '2026-07-19T05:30:00Z', detectedLoad: { origin: 'Houston, TX', originState: 'TX', destination: 'Chicago, IL', destinationState: 'IL', weight: 38000, equipment: 'Flatbed', commodity: 'Industrial Parts', suggestedPrice: 3100, confidence: 0.91 }, status: 'created', carrierCandidates: 4 },
+  { id: '4', emailFrom: 'sarah@nexgentransport.com', emailSubject: 'Quote for Atlanta to Miami reefer', emailPreview: 'Need reefer for 35000 lbs produce. Atlanta GA to Miami FL. Can you handle this week?', emailDate: '2026-07-18T18:00:00Z', detectedLoad: null, status: 'ignored', carrierCandidates: 0 },
+  { id: '5', emailFrom: 'david@midwesthaulers.com', emailSubject: 'Seattle to SF 40k lbs produce', emailPreview: 'Hey, got a reefer load Seattle to San Francisco. 40000 lbs produce. Need it picked up Wednesday.', emailDate: '2026-07-18T16:30:00Z', detectedLoad: { origin: 'Seattle, WA', originState: 'WA', destination: 'San Francisco, CA', destinationState: 'CA', weight: 40000, equipment: 'Reefer', commodity: 'Produce', suggestedPrice: 2550, confidence: 0.93 }, status: 'detected', carrierCandidates: 3 },
+]
+
+export const mockWorkflowEvents: WorkflowEvent[] = [
+  { id: '1', loadId: '1', loadNumber: 1587, type: 'email_received', title: 'Email received', description: 'Gulf Shipping requested Dallas → Atlanta dry van', timestamp: '2026-07-18T10:00:00Z', icon: '📧', aiGenerated: false },
+  { id: '2', loadId: '1', loadNumber: 1587, type: 'ai_created', title: 'AI created load', description: 'Auto-extracted: 43000 lbs, Food Products, Dry Van', timestamp: '2026-07-18T10:01:00Z', icon: '🤖', aiGenerated: true },
+  { id: '3', loadId: '1', loadNumber: 1587, type: 'carrier_suggested', title: 'Carriers suggested', description: '3 candidates found: Lone Star, Eagle Freight, Sunshine', timestamp: '2026-07-18T10:02:00Z', icon: '🔍', aiGenerated: true },
+  { id: '4', loadId: '1', loadNumber: 1587, type: 'carrier_assigned', title: 'Carrier assigned', description: 'Lone Star Trucking assigned — $1,850 buy rate', timestamp: '2026-07-18T10:05:00Z', icon: '✅', aiGenerated: false },
+  { id: '5', loadId: '1', loadNumber: 1587, type: 'rate_conf_sent', title: 'Rate Confirmation sent', description: 'RC sent to Lone Star Trucking — $2,450 sell rate', timestamp: '2026-07-18T10:06:00Z', icon: '📄', aiGenerated: true },
+  { id: '6', loadId: '1', loadNumber: 1587, type: 'rate_conf_accepted', title: 'Rate Confirmation accepted', description: 'Lone Star accepted the rate', timestamp: '2026-07-18T14:30:00Z', icon: '🤝', aiGenerated: false },
+  { id: '7', loadId: '1', loadNumber: 1587, type: 'pickup', title: 'Load picked up', description: 'John Martinez picked up at Dallas, TX', timestamp: '2026-07-19T08:45:00Z', icon: '🚛', aiGenerated: false },
+  { id: '8', loadId: '1', loadNumber: 1587, type: 'in_transit', title: 'In transit', description: 'En route to Atlanta, GA — 65% complete', timestamp: '2026-07-19T12:00:00Z', icon: '🗺️', aiGenerated: false },
+  { id: '9', loadId: '2', loadNumber: 1586, type: 'email_received', title: 'Email received', description: 'Pacific Freight requested LA → Phoenix', timestamp: '2026-07-18T09:00:00Z', icon: '📧', aiGenerated: false },
+  { id: '10', loadId: '2', loadNumber: 1586, type: 'ai_created', title: 'AI created load', description: 'Auto-extracted: 28000 lbs, Electronics, Dry Van', timestamp: '2026-07-18T09:01:00Z', icon: '🤖', aiGenerated: true },
+  { id: '11', loadId: '2', loadNumber: 1586, type: 'carrier_suggested', title: 'Carriers suggested', description: '2 candidates: Eagle Freight, Midwest Mega', timestamp: '2026-07-18T09:02:00Z', icon: '🔍', aiGenerated: true },
+  { id: '12', loadId: '2', loadNumber: 1586, type: 'carrier_assigned', title: 'Carrier assigned', description: 'Eagle Freight Lines assigned — $1,200 buy rate', timestamp: '2026-07-18T09:05:00Z', icon: '✅', aiGenerated: false },
+  { id: '13', loadId: '2', loadNumber: 1586, type: 'rate_conf_sent', title: 'Rate Confirmation sent', description: 'RC sent — $1,650 sell rate', timestamp: '2026-07-18T09:06:00Z', icon: '📄', aiGenerated: true },
+  { id: '14', loadId: '2', loadNumber: 1586, type: 'rate_conf_accepted', title: 'Rate Confirmation accepted', description: 'Eagle Freight accepted', timestamp: '2026-07-18T11:20:00Z', icon: '🤝', aiGenerated: false },
+]
+
+export const mockCarrierAI: CarrierAI[] = [
+  { id: '1', carrierId: '1', acceptanceRate: 94, avgDelay: 1.2, avgNegotiation: -50, onTimeRate: 97, totalTrips: 89, lastIncidents: 0, aiRecommendation: 'excellent', aiNote: 'Highly reliable. Never missed a pickup. Accepts rates within $50 of quote.' },
+  { id: '2', carrierId: '2', acceptanceRate: 91, avgDelay: 2.1, avgNegotiation: -75, onTimeRate: 93, totalTrips: 67, lastIncidents: 1, aiRecommendation: 'good', aiNote: 'Strong performer. Minor delays on long-haul routes. Good for West Coast lanes.' },
+  { id: '3', carrierId: '3', acceptanceRate: 85, avgDelay: 3.5, avgNegotiation: -100, onTimeRate: 88, totalTrips: 45, lastIncidents: 2, aiRecommendation: 'good', aiNote: 'Decent carrier for Southeast. Tends to negotiate harder on rate.' },
+  { id: '4', carrierId: '4', acceptanceRate: 62, avgDelay: 8.2, avgNegotiation: -150, onTimeRate: 71, totalTrips: 23, lastIncidents: 5, aiRecommendation: 'caution', aiNote: 'Conditional safety rating. Multiple delays reported. Use only if no alternatives.' },
+  { id: '5', carrierId: '5', acceptanceRate: 96, avgDelay: 0.8, avgNegotiation: -30, onTimeRate: 98, totalTrips: 156, lastIncidents: 0, aiRecommendation: 'excellent', aiNote: 'Top performer. Fastest response time. Best for time-sensitive loads.' },
+  { id: '6', carrierId: '6', acceptanceRate: 45, avgDelay: 15.0, avgNegotiation: -200, onTimeRate: 55, totalTrips: 8, lastIncidents: 7, aiRecommendation: 'avoid', aiNote: 'No insurance, no authority. Rejected. Do not assign loads.' },
+]
+
+export const mockCustomerAI: CustomerAI[] = [
+  { id: '1', customerId: '1', relationshipScore: 5, avgMargin: 580, avgPaymentDays: 18, totalRevenue: 284000, preferredEquipment: 'Dry Van', topRoutes: ['Dallas → Atlanta', 'Dallas → Denver'], aiNote: 'Premium customer. Consistent volume. Always accepts within 2% of quoted price. Pays early.', priceRecommendation: 2500, priceConfidence: 0.92 },
+  { id: '2', customerId: '2', relationshipScore: 4, avgMargin: 490, avgPaymentDays: 22, totalRevenue: 178000, preferredEquipment: 'Dry Van', topRoutes: ['LA → Phoenix', 'Seattle → SF'], aiNote: 'Good customer. West Coast specialist. Price-sensitive — offer competitive rates.', priceRecommendation: 1700, priceConfidence: 0.87 },
+  { id: '3', customerId: '3', relationshipScore: 3, avgMargin: 420, avgPaymentDays: 28, totalRevenue: 134000, preferredEquipment: 'Flatbed', topRoutes: ['Houston → Chicago', 'New Orleans → Nashville'], aiNote: 'Growing customer. Irregular volume. Payment terms longer than average.', priceRecommendation: 2900, priceConfidence: 0.83 },
+  { id: '4', customerId: '4', relationshipScore: 4, avgMargin: 500, avgPaymentDays: 15, totalRevenue: 68000, preferredEquipment: 'Dry Van', topRoutes: ['Atlanta → Miami'], aiNote: 'New but reliable. Fast payer. Good potential for upselling.', priceRecommendation: 2000, priceConfidence: 0.89 },
+  { id: '5', customerId: '5', relationshipScore: 2, avgMargin: 350, avgPaymentDays: 35, totalRevenue: 42000, preferredEquipment: 'Dry Van', topRoutes: ['Chicago → Detroit'], aiNote: 'Inactive customer. Last load 3 months ago. Low margin. Consider re-engagement campaign.', priceRecommendation: 1800, priceConfidence: 0.70 },
+  { id: '6', customerId: '6', relationshipScore: 4, avgMargin: 550, avgPaymentDays: 20, totalRevenue: 112000, preferredEquipment: 'Flatbed', topRoutes: ['Miami → Charlotte'], aiNote: 'Steady customer. Flatbed specialist. Fair negotiator.', priceRecommendation: 2750, priceConfidence: 0.86 },
+]
+
+export const mockAnalyticsInsights: AnalyticsInsight[] = [
+  { id: '1', type: 'trend', title: 'Revenue up 18% this week', description: 'Total revenue increased from $3,800 to $4,450 compared to last week. Driven by 2 additional ABC Logistics loads.', impact: 'high', metric: '$4,450', change: '+18%' },
+  { id: '2', type: 'alert', title: 'Margin dropping on West Coast lanes', description: 'Average margin on LA → Phoenix and Seattle → SF routes decreased 3% due to increased fuel costs. Consider adjusting sell rates.', impact: 'medium', metric: '-3%', change: '-$15 avg' },
+  { id: '3', type: 'recommendation', title: 'Increase Dallas rates by 5%', description: 'Dallas → Atlanta lane has 94% carrier acceptance at current rates. Market data suggests 5% increase is sustainable without losing volume.', impact: 'high', metric: '+5%', change: '+$122/load' },
+  { id: '4', type: 'opportunity', title: 'ABC Logistics upsell potential', description: 'Robert Chen\'s average margin is $580/load. He\'s been asking about new lanes. Propose Houston → Atlanta at premium rate.', impact: 'high', metric: '$580', change: 'avg margin' },
+  { id: '5', type: 'alert', title: 'Pacific Coast Insurance expiring', description: 'Pacific Coast Hauling (MC-789012) insurance expires in 5 days. Temporarily suspend load assignments until renewed.', impact: 'medium', metric: '5 days', change: 'until expiry' },
+  { id: '6', type: 'recommendation', title: 'Prioritize Midwest Mega Transport', description: '98% on-time rate, fastest response. Use for all time-sensitive loads. They have capacity on Dallas → Chicago lane.', impact: 'low', metric: '98%', change: 'on-time' },
+]

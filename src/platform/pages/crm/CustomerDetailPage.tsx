@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   ArrowLeft, Mail, Phone, MessageSquare, TrendingUp, Truck,
-  DollarSign, Calendar, Building2, ExternalLink,
+  DollarSign, Calendar, Building2, ExternalLink, Star, Clock, Brain,
 } from 'lucide-react'
-import { mockCustomers, mockLoads, mockInvoices } from '../../data/mock'
+import { mockCustomers, mockLoads, mockInvoices, mockCustomerAI } from '../../data/mock'
 import { useLanguage } from '../../../i18n/LanguageContext'
 import { useToast } from '../../components/Toast'
 
@@ -15,6 +15,7 @@ export function CustomerDetailPage() {
   const { toast } = useToast()
   const customerId = window.location.pathname.split('/').pop()
   const customer = mockCustomers.find((c) => c.id === customerId)
+  const customerAI = mockCustomerAI.find((a) => a.customerId === customerId)
   const [activeTab, setActiveTab] = useState<'loads' | 'invoices' | 'activity'>('loads')
 
   if (!customer) {
@@ -105,6 +106,90 @@ export function CustomerDetailPage() {
           </button>
         </div>
       </motion.div>
+
+      {customerAI && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+          className="rounded-xl border border-orange-500/10 bg-gradient-to-br from-orange-500/[0.06] to-transparent p-6"
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <Brain className="h-5 w-5 text-orange-400" />
+            <h3 className="font-display text-sm font-bold text-white/80 uppercase tracking-wider">{tp.customerAI.aiInsight}</h3>
+          </div>
+
+          <div className="mb-4 flex items-center gap-3">
+            <span className="text-xs text-white/40">{tp.customerAI.relationship}</span>
+            <div className="flex items-center gap-0.5">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} className={`h-4 w-4 ${i < customerAI.relationshipScore ? 'fill-orange-400 text-orange-400' : 'text-white/10'}`} />
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-5 rounded-lg bg-blue-500/5 border border-blue-500/10 px-4 py-3">
+            <p className="text-sm italic text-white/50">{customerAI.aiNote}</p>
+          </div>
+
+          <div className="mb-5 grid grid-cols-2 gap-3">
+            <div className="flex items-center gap-3 rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500/10">
+                <TrendingUp className="h-4 w-4 text-orange-400/70" />
+              </div>
+              <div>
+                <p className="text-xs text-white/40">{tp.customerAI.avgMargin}</p>
+                <p className="font-display text-sm font-bold text-white">${customerAI.avgMargin}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
+                <Clock className="h-4 w-4 text-blue-400/70" />
+              </div>
+              <div>
+                <p className="text-xs text-white/40">{tp.customerAI.avgPayment}</p>
+                <p className="font-display text-sm font-bold text-white">{customerAI.avgPaymentDays} {tp.customerAI.days}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10">
+                <Truck className="h-4 w-4 text-green-400/70" />
+              </div>
+              <div>
+                <p className="text-xs text-white/40">{tp.customerAI.preferredEquipment}</p>
+                <p className="font-display text-sm font-bold text-white">{customerAI.preferredEquipment}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-lg bg-white/[0.03] border border-white/[0.06] p-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/10">
+                <DollarSign className="h-4 w-4 text-purple-400/70" />
+              </div>
+              <div>
+                <p className="text-xs text-white/40">{tp.dashboard.revenue}</p>
+                <p className="font-display text-sm font-bold text-white">${customerAI.totalRevenue.toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg bg-orange-500/5 border border-orange-500/10 p-4">
+            <div className="flex items-end justify-between mb-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-white/30">{tp.customerAI.recommendedPrice}</p>
+                <p className="font-display text-2xl font-bold text-orange-400">${customerAI.priceRecommendation.toLocaleString()}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] uppercase tracking-wider text-white/30">{tp.customerAI.confidence}</p>
+                <p className="font-display text-lg font-bold text-white">{Math.round(customerAI.priceConfidence * 100)}%</p>
+              </div>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="h-full rounded-full bg-orange-400 transition-all" style={{ width: `${Math.round(customerAI.priceConfidence * 100)}%` }} />
+            </div>
+            <p className="mt-2 text-[11px] text-white/30">
+              {language === 'es'
+                ? `Basado en ${customer.totalLoads} cargas históricas`
+                : `Based on ${customer.totalLoads} historical loads`}
+            </p>
+          </div>
+        </motion.div>
+      )}
 
       <div className="flex gap-1 border-b border-white/[0.06]">
         {tabs.map((tab) => (

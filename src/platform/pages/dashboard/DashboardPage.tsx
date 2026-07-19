@@ -1,378 +1,305 @@
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import {
-  Truck,
-  DollarSign,
-  AlertTriangle,
-  Clock,
-  TrendingUp,
-  ArrowUpRight,
-  ArrowRight,
-  Mail,
-  Sparkles,
-  Plus,
-} from 'lucide-react'
-import { useAuthStore } from '../../store'
 import { useLanguage } from '../../../i18n/LanguageContext'
-import { mockLoads, mockInvoices, mockMessages, mockNotifications } from '../../data/mock'
+import { mockLoads, mockAIInbox, mockInvoices, currentUser } from '../../data/mock'
+import { Bot, Sparkles, ArrowRight, Mail, MessageSquare, ShieldCheck, FileText, Truck, Clock, DollarSign, TrendingUp, Package, ChevronRight, Zap, AlertCircle, CheckCircle2 } from 'lucide-react'
 
-const fadeIn = {
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4 },
+const statusColor: Record<string, string> = {
+  pending: 'bg-yellow-500/15 text-yellow-400',
+  quoted: 'bg-blue-500/15 text-blue-400',
+  booked: 'bg-indigo-500/15 text-indigo-400',
+  dispatched: 'bg-purple-500/15 text-purple-400',
+  in_transit: 'bg-orange-500/15 text-orange-400',
+  delivered: 'bg-green-500/15 text-green-400',
+  invoiced: 'bg-cyan-500/15 text-cyan-400',
+  paid: 'bg-emerald-500/15 text-emerald-400',
 }
 
-const statusLabelMap: Record<string, Record<string, string>> = {
-  pending: { es: 'Pendiente', en: 'Pending' },
-  quoted: { es: 'Cotizada', en: 'Quoted' },
-  booked: { es: 'Reservada', en: 'Booked' },
-  dispatched: { es: 'Despachada', en: 'Dispatched' },
-  in_transit: { es: 'En Tránsito', en: 'In Transit' },
-  delivered: { es: 'Entregada', en: 'Delivered' },
-  invoiced: { es: 'Facturada', en: 'Invoiced' },
-  paid: { es: 'Pagada', en: 'Paid' },
+function greetingText(tp: any) {
+  const h = new Date().getHours()
+  if (h < 12) return tp.topbar.greeting.morning
+  if (h < 18) return tp.topbar.greeting.afternoon
+  return tp.topbar.greeting.evening
 }
 
 export function DashboardPage() {
-  const { user } = useAuthStore()
   const navigate = useNavigate()
-  const { tp, language } = useLanguage()
+  const { tp } = useLanguage()
 
-  const activeLoads = mockLoads.filter((l) => ['dispatched', 'in_transit'].includes(l.status))
-  const pendingLoads = mockLoads.filter((l) => ['pending', 'quoted', 'booked'].includes(l.status))
-  const unreadMessages = mockMessages.filter((m) => !m.read)
-  const unreadNotifications = mockNotifications.filter((n) => !n.read)
-  const pendingInvoices = mockInvoices.filter((i) => i.status === 'pending' || i.status === 'overdue')
-  const totalRevenue = mockInvoices.filter((i) => i.status === 'paid').reduce((a, i) => a + i.amount, 0)
-  const totalMargin = mockLoads.reduce((a, l) => a + l.margin, 0)
+  const activeLoads = mockLoads.filter((l) => ['dispatched', 'in_transit', 'booked'].includes(l.status))
+  const paidToday = mockInvoices.filter((i) => i.status === 'paid')
+  const todayRevenue = paidToday.reduce((a, i) => a + i.amount, 0)
+  const todayMargin = mockLoads.filter((l) => l.status === 'paid').reduce((a, l) => a + l.margin, 0)
+  const pickupsToday = mockLoads.filter((l) => l.status === 'in_transit').length
+  const readyEmails = mockAIInbox.filter((e: any) => e.status === 'ready' || e.status === 'detected')
 
-  const stats = [
-    { label: tp.dashboard.activeLoads, value: activeLoads.length, icon: Truck, color: 'text-orange-400', bg: 'bg-orange-500/10', change: '+2 today' },
-    { label: tp.dashboard.pendingLoads, value: pendingLoads.length, icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10', change: '3 need quotes' },
-    { label: tp.dashboard.revenue, value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'text-green-400', bg: 'bg-green-500/10', change: '+$4,450 this week' },
-    { label: tp.dashboard.totalMargin, value: `$${totalMargin.toLocaleString()}`, icon: TrendingUp, color: 'text-purple-400', bg: 'bg-purple-500/10', change: '$600 avg/load' },
+  const suggestions = [
+    { label: 'Create 5 Loads', description: 'From detected emails awaiting action', icon: Package, accent: 'text-orange-400 bg-orange-500/10', path: '/app/loads/new', arrow: true },
+    { label: 'Reply to ABC Logistics', description: 'Robert Chen asked about pickup time', icon: MessageSquare, accent: 'text-blue-400 bg-blue-500/10', path: '/app/loads/1' },
+    { label: 'Process 14 emails', description: 'AI detected potential loads in inbox', icon: Mail, accent: 'text-purple-400 bg-purple-500/10', path: '/app/loads/new' },
+    { label: 'Verify Carrier', description: 'Pacific Coast Hauling pending verification', icon: ShieldCheck, accent: 'text-green-400 bg-green-500/10', path: '/app/carriers' },
+    { label: 'Generate 3 Invoices', description: 'Delivered loads awaiting invoicing', icon: FileText, accent: 'text-cyan-400 bg-cyan-500/10', path: '/app/invoicing' },
   ]
 
-  const statusColor = (status: string) => {
-    const map: Record<string, string> = {
-      pending: 'bg-yellow-500/15 text-yellow-400',
-      quoted: 'bg-blue-500/15 text-blue-400',
-      booked: 'bg-indigo-500/15 text-indigo-400',
-      dispatched: 'bg-purple-500/15 text-purple-400',
-      in_transit: 'bg-orange-500/15 text-orange-400',
-      delivered: 'bg-green-500/15 text-green-400',
-      invoiced: 'bg-cyan-500/15 text-cyan-400',
-      paid: 'bg-emerald-500/15 text-emerald-400',
-    }
-    return map[status] || 'bg-white/10 text-white/60'
-  }
-
-  const statusLabel = (s: string) => statusLabelMap[s]?.[language] || s.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-
-  const greetingText = () => {
-    const h = new Date().getHours()
-    if (h < 12) return tp.topbar.greeting.morning
-    if (h < 18) return tp.topbar.greeting.afternoon
-    return tp.topbar.greeting.evening
-  }
+  const recentActivity = [
+    { type: 'load', icon: Truck, description: 'Load #1587 picked up in Dallas, TX', time: '15 min ago', ai: true },
+    { type: 'message', icon: MessageSquare, description: 'Robert Chen — "Can we push pickup to 9 AM?"', time: '30 min ago', ai: false },
+    { type: 'invoice', icon: DollarSign, description: 'INV-2026-0088 paid by Pacific Freight Co — $2,350', time: '2 hrs ago', ai: false },
+    { type: 'email', icon: Mail, description: 'AI detected load opportunity from dispatch@westernexp.com', time: '1 hr ago', ai: true },
+    { type: 'alert', icon: AlertCircle, description: 'Pacific Coast Hauling insurance expires in 5 days', time: '1 hr ago', ai: true },
+    { type: 'success', icon: CheckCircle2, description: 'Load #1584 delivered — Atlanta to Miami', time: '3 hrs ago', ai: false },
+  ]
 
   return (
     <div className="space-y-6">
-      <motion.div {...fadeIn}>
+      {/* ── 1. AI Briefing Header ────────────────────────────────── */}
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <p className="text-xs font-medium uppercase tracking-wider text-orange-400/70">
+          {greetingText(tp)}
+        </p>
         <h1 className="font-display text-2xl font-bold text-white md:text-3xl">
-          {greetingText()},{' '}
-          <span className="gradient-text">{user?.name}</span>
+          {greetingText(tp)}, <span className="gradient-text">{currentUser.name}</span>
         </h1>
-        <p className="mt-1 text-sm text-white/50">{tp.dashboard.hereToday}</p>
-      </motion.div>
+        <p className="mt-2 text-sm text-white/50">
+          3 emails with load detected · 2 loads waiting for action · 1 invoice to send · 1 POD missing
+        </p>
+      </div>
 
-      {unreadNotifications.length > 0 && (
-        <motion.div
-          {...fadeIn}
-          transition={{ delay: 0.05, duration: 0.4 }}
-          className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4"
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/15">
-              <AlertTriangle className="h-5 w-5 text-orange-400" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-white/80">
-                {tp.dashboard.alerts(unreadNotifications.length)}
-              </p>
-              <p className="text-xs text-white/40">
-                {unreadNotifications[0].title} — {unreadNotifications[0].description}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/app/notifications')}
-              className="rounded-lg bg-orange-500/10 px-3 py-1.5 text-xs font-medium text-orange-400 transition-colors hover:bg-orange-500/20"
-            >
-              {tp.dashboard.viewAll}
-            </button>
+      {/* ── 2. AI Suggestions Panel ──────────────────────────────── */}
+      <div className="rounded-2xl border border-orange-500/20 bg-gradient-to-br from-orange-500/[0.06] to-transparent p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/15">
+            <Sparkles className="h-4 w-4 text-orange-400" />
           </div>
-        </motion.div>
-      )}
+          <h2 className="font-display text-lg font-bold text-white">AI Suggestions</h2>
+          <span className="ml-auto flex items-center gap-1 rounded-full bg-orange-500/15 px-2.5 py-0.5 text-[11px] font-medium text-orange-400">
+            <Zap className="h-3 w-3" /> 5 actions
+          </span>
+        </div>
+        <div className="space-y-1">
+          {suggestions.map((item) => {
+            const Icon = item.icon
+            return (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => navigate(item.path)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all hover:bg-white/[0.04]"
+              >
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${item.accent}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-white/90">{item.label}</p>
+                  <p className="text-xs text-white/40">{item.description}</p>
+                </div>
+                {item.arrow ? (
+                  <ArrowRight className="h-4 w-4 shrink-0 text-orange-400" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-white/20" />
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
-      <motion.div
-        {...fadeIn}
-        transition={{ delay: 0.08, duration: 0.4 }}
-        className="rounded-xl border border-purple-500/20 bg-purple-500/[0.03]"
-      >
-        <div className="flex items-center justify-between border-b border-purple-500/10 px-5 py-4">
+      {/* ── 3. AI-Processed Emails ───────────────────────────────── */}
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/15">
-              <Mail className="h-4 w-4 text-purple-400" />
+              <Bot className="h-4 w-4 text-purple-400" />
             </div>
             <div>
-              <h2 className="font-display text-sm font-bold text-white">{tp.dashboard.incomingEmails}</h2>
-              <p className="text-xs text-white/40">{tp.dashboard.incomingEmailsDesc}</p>
+              <h2 className="font-display text-sm font-bold text-white">AI-Detected Emails</h2>
+              <p className="text-xs text-white/40">AI detected potential loads in your inbox</p>
             </div>
           </div>
           <span className="flex h-5 items-center rounded-full bg-purple-500/20 px-2 text-[11px] font-medium text-purple-400">
-            3 {tp.dashboard.new}
+            {readyEmails.length} new
           </span>
         </div>
-        <div className="divide-y divide-purple-500/[0.06]">
-          {[
-            {
-              from: 'mike@acmefreight.com',
-              subject: 'Need quote: Dallas TX → Chicago IL, 42,000 lbs, dry van',
-              extracted: { origin: 'Dallas, TX', destination: 'Chicago, IL', weight: '42,000 lbs', equipment: 'Dry Van' },
-              time: '2 min ago',
-            },
-            {
-              from: 'sarah@globallogistics.com',
-              subject: 'RE: Load 1847 — Pickup rescheduled to Thursday',
-              extracted: { origin: 'Miami, FL', destination: 'Atlanta, GA', weight: '38,500 lbs', equipment: 'Reefer' },
-              time: '15 min ago',
-            },
-            {
-              from: 'dispatch@westernexp.com',
-              subject: 'FTL available: LA to Phoenix, 48ft flatbed, departing Monday',
-              extracted: { origin: 'Los Angeles, CA', destination: 'Phoenix, AZ', weight: '45,000 lbs', equipment: 'Flatbed' },
-              time: '1 hr ago',
-            },
-          ].map((email, i) => (
-            <div key={i} className="px-5 py-3.5">
+        <div className="divide-y divide-white/[0.04]">
+          {readyEmails.slice(0, 3).map((email: any) => (
+            <div key={email.id} className="px-5 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-white/70">{email.from}</span>
-                  <span className="text-[10px] text-white/30">· {email.time}</span>
+                  <span className="text-[10px] text-white/20">· {email.time}</span>
                 </div>
                 <Sparkles className="h-3.5 w-3.5 text-purple-400/60" />
               </div>
               <p className="mt-1 text-xs text-white/50">{email.subject}</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {Object.entries(email.extracted).map(([key, val]) => (
-                  <span key={key} className="rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-300/80">
-                    {key}: {val}
-                  </span>
-                ))}
+              {email.extracted && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {email.extracted.origin && (
+                    <span className="rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-300/80">
+                      {email.extracted.origin} → {email.extracted.destination}
+                    </span>
+                  )}
+                  {email.extracted.weight && (
+                    <span className="rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-300/80">
+                      {email.extracted.weight}
+                    </span>
+                  )}
+                  {email.extracted.equipment && (
+                    <span className="rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-300/80">
+                      {email.extracted.equipment}
+                    </span>
+                  )}
+                  {email.suggestedPrice && (
+                    <span className="rounded-md bg-green-500/10 px-2 py-0.5 text-[10px] font-medium text-green-300/80">
+                      Suggested: ${email.suggestedPrice.toLocaleString()} ({email.confidence}% confidence)
+                    </span>
+                  )}
+                  {email.carrierCandidates && (
+                    <span className="rounded-md bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-300/80">
+                      {email.carrierCandidates} carriers found
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="mt-3 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => navigate('/app/loads/new')}
-                  className="ml-auto flex items-center gap-1 rounded-md bg-orange-500/15 px-2 py-0.5 text-[10px] font-medium text-orange-400 transition-colors hover:bg-orange-500/25"
+                  className="flex items-center gap-1.5 rounded-lg bg-orange-500/15 px-3 py-1.5 text-[11px] font-semibold text-orange-400 transition-colors hover:bg-orange-500/25"
                 >
-                  <Plus className="h-3 w-3" />
-                  {tp.dashboard.createFromEmail}
+                  <Package className="h-3 w-3" />
+                  Create Load
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg px-3 py-1.5 text-[11px] font-medium text-white/30 transition-colors hover:bg-white/[0.04] hover:text-white/50"
+                >
+                  Ignore
                 </button>
               </div>
             </div>
           ))}
         </div>
-      </motion.div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat, i) => {
-          const Icon = stat.icon
-          return (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + i * 0.05, duration: 0.4 }}
-              className="group rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 transition-colors hover:border-white/[0.1] hover:bg-white/[0.04]"
-            >
-              <div className="flex items-center justify-between">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${stat.bg}`}>
-                  <Icon className={`h-5 w-5 ${stat.color}`} />
-                </div>
-                <span className="text-xs text-white/30">{stat.change}</span>
-              </div>
-              <p className="mt-4 font-display text-2xl font-bold text-white">{stat.value}</p>
-              <p className="mt-1 text-sm text-white/50">{stat.label}</p>
-            </motion.div>
-          )
-        })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <motion.div
-          {...fadeIn}
-          transition={{ delay: 0.3, duration: 0.4 }}
-          className="rounded-xl border border-white/[0.06] bg-white/[0.02] lg:col-span-2"
-        >
-          <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-            <h2 className="font-display text-lg font-bold text-white">{tp.dashboard.recentLoads}</h2>
-            <button
-              type="button"
-              onClick={() => navigate('/app/loads')}
-              className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300"
-            >
-              {tp.dashboard.viewAll} <ArrowRight className="h-3 w-3" />
-            </button>
-          </div>
-          <div className="divide-y divide-white/[0.04]">
-            {mockLoads.slice(0, 5).map((load) => (
-              <button
-                key={load.id}
-                type="button"
-                onClick={() => navigate(`/app/loads/${load.id}`)}
-                className="flex w-full items-center gap-4 px-5 py-3.5 text-left transition-colors hover:bg-white/[0.02]"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10 font-display text-sm font-bold text-orange-400">
-                  #{load.loadNumber}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-white/80">
-                    {load.origin} → {load.destination}
-                  </p>
-                  <p className="text-xs text-white/40">
-                    {load.customer} · {load.equipment} · {load.weight.toLocaleString()} lbs
-                  </p>
-                </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${statusColor(load.status)}`}>
-                  {statusLabel(load.status)}
-                </span>
-                <span className="shrink-0 text-sm font-medium text-white/70">
-                  ${load.sellRate.toLocaleString()}
-                </span>
-              </button>
-            ))}
-          </div>
-        </motion.div>
-
-        <motion.div
-          {...fadeIn}
-          transition={{ delay: 0.35, duration: 0.4 }}
-          className="space-y-6"
-        >
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
-            <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-              <h2 className="font-display text-lg font-bold text-white">{tp.dashboard.messages}</h2>
-              <span className="flex h-5 items-center rounded-full bg-orange-500/20 px-2 text-[11px] font-medium text-orange-400">
-                {unreadMessages.length} {tp.dashboard.new}
-              </span>
+      {/* ── 4. Today's Pulse (compact stats) ─────────────────────── */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10">
+              <DollarSign className="h-4 w-4 text-green-400" />
             </div>
-            <div className="divide-y divide-white/[0.04]">
-              {mockMessages.slice(0, 4).map((msg) => (
-                <div key={msg.id} className="px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-white/70">{msg.from}</span>
-                    <span className="text-[10px] text-white/20">· {msg.channel}</span>
-                  </div>
-                  <p className="mt-1 truncate text-xs text-white/50">{msg.preview}</p>
-                </div>
-              ))}
-            </div>
+            <span className="text-xs text-white/40">Today's Revenue</span>
           </div>
-
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02]">
-            <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-              <h2 className="font-display text-lg font-bold text-white">{tp.dashboard.invoices}</h2>
-              <button
-                type="button"
-                onClick={() => navigate('/app/invoicing')}
-                className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300"
-              >
-                {tp.dashboard.viewAll} <ArrowRight className="h-3 w-3" />
-              </button>
+          <p className="mt-2 font-display text-xl font-bold text-white">${todayRevenue.toLocaleString()}</p>
+        </div>
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/10">
+              <TrendingUp className="h-4 w-4 text-purple-400" />
             </div>
-            <div className="divide-y divide-white/[0.04]">
-              {pendingInvoices.slice(0, 3).map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between px-5 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-white/80">{inv.invoiceNumber}</p>
-                    <p className="text-xs text-white/40">{inv.customer}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-white/80">${inv.amount.toLocaleString()}</p>
-                    <span className={`text-[11px] font-medium ${inv.status === 'overdue' ? 'text-red-400' : 'text-yellow-400'}`}>
-                      {inv.status}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <span className="text-xs text-white/40">Today's Margin</span>
           </div>
-        </motion.div>
+          <p className="mt-2 font-display text-xl font-bold text-white">${todayMargin.toLocaleString()}</p>
+        </div>
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
+              <Truck className="h-4 w-4 text-orange-400" />
+            </div>
+            <span className="text-xs text-white/40">Today's Pickups</span>
+          </div>
+          <p className="mt-2 font-display text-xl font-bold text-white">{pickupsToday}</p>
+        </div>
       </div>
 
-      <motion.div
-        {...fadeIn}
-        transition={{ delay: 0.4, duration: 0.4 }}
-        className="rounded-xl border border-white/[0.06] bg-white/[0.02]"
-      >
+      {/* ── 5. Active Loads (compact table) ──────────────────────── */}
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02]">
         <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
-          <h2 className="font-display text-lg font-bold text-white">{tp.dashboard.upcomingPickups}</h2>
+          <h2 className="font-display text-sm font-bold text-white">
+            Active Loads <span className="ml-1 text-xs font-normal text-white/30">({activeLoads.length})</span>
+          </h2>
+          <button
+            type="button"
+            onClick={() => navigate('/app/loads')}
+            className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300"
+          >
+            View All <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-white/[0.04] text-left text-[11px] uppercase tracking-wider text-white/30">
+                <th className="px-5 py-2.5 font-medium">Load #</th>
+                <th className="px-5 py-2.5 font-medium">Route</th>
+                <th className="px-5 py-2.5 font-medium">Status</th>
+                <th className="px-5 py-2.5 font-medium">Carrier</th>
+                <th className="px-5 py-2.5 font-medium">ETA</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/[0.04]">
+              {activeLoads.slice(0, 5).map((load) => (
+                <tr
+                  key={load.id}
+                  onClick={() => navigate(`/app/loads/${load.id}`)}
+                  className="cursor-pointer transition-colors hover:bg-white/[0.02]"
+                >
+                  <td className="whitespace-nowrap px-5 py-3 text-sm font-semibold text-orange-400">
+                    #{load.loadNumber}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3 text-sm text-white/70">
+                    {load.origin} → {load.destination}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3">
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${statusColor[load.status]}`}>
+                      {load.status === 'in_transit' ? 'In Transit' : load.status.charAt(0).toUpperCase() + load.status.slice(1)}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3 text-sm text-white/50">
+                    {load.carrier || '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-5 py-3 text-sm text-white/40">
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {load.deliveryDate}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── 6. Recent Activity Feed ──────────────────────────────── */}
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+        <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
+          <h2 className="font-display text-sm font-bold text-white">Recent Activity</h2>
+          <span className="text-[11px] text-white/30">Today</span>
         </div>
         <div className="divide-y divide-white/[0.04]">
-          {mockLoads
-            .filter((l) => ['booked', 'dispatched'].includes(l.status))
-            .map((load) => (
-              <div key={load.id} className="flex items-center gap-4 px-5 py-3.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-500/10">
-                  <Truck className="h-5 w-5 text-orange-400" />
+          {recentActivity.map((item, i) => {
+            const Icon = item.icon
+            return (
+              <div key={i} className="flex items-center gap-3 px-5 py-3">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/[0.04]">
+                  <Icon className="h-4 w-4 text-white/40" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-white/80">
-                    Load #{load.loadNumber} — {load.origin} → {load.destination}
-                  </p>
-                  <p className="text-xs text-white/40">
-                    {load.carrier} · {load.driver} · Pickup {load.pickupDate}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm text-white/70">{item.description}</p>
+                    {item.ai && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-purple-500/15 px-2 py-0.5 text-[10px] font-medium text-purple-400">
+                        <Sparkles className="h-2.5 w-2.5" /> AI
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-white/30">{item.time}</p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium ${statusColor(load.status)}`}>
-                  {statusLabel(load.status)}
-                </span>
               </div>
-            ))}
+            )
+          })}
         </div>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
-        className="rounded-xl border border-orange-500/20 bg-gradient-to-r from-orange-500/10 to-transparent p-5"
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-display text-lg font-bold text-white">{tp.dashboard.quickActions}</h3>
-            <p className="mt-1 text-sm text-white/50">{tp.dashboard.quickActionsDesc}</p>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          {[
-            { label: tp.dashboard.createLoad, path: '/app/loads/new' },
-            { label: tp.dashboard.aiAssistant, path: '/app/ai' },
-            { label: tp.dashboard.findCarrier, path: '/app/carriers' },
-            { label: tp.dashboard.sendInvoice, path: '/app/invoicing' },
-          ].map((action) => (
-            <button
-              key={action.path}
-              type="button"
-              onClick={() => navigate(action.path)}
-              className="flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white/70 transition-all hover:border-orange-500/30 hover:bg-orange-500/10 hover:text-orange-400"
-            >
-              <ArrowUpRight className="h-4 w-4" />
-              {action.label}
-            </button>
-          ))}
-        </div>
-      </motion.div>
+      </div>
     </div>
   )
 }

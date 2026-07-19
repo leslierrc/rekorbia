@@ -3,8 +3,9 @@ import { motion } from 'framer-motion'
 import {
   ArrowLeft, Truck, MapPin, Calendar, Weight, DollarSign, User,
   Phone, Mail, MessageSquare, FileText, Clock, Shield, Edit3,
+  Star, TrendingUp, AlertTriangle, CheckCircle2, Circle,
 } from 'lucide-react'
-import { mockLoads } from '../../data/mock'
+import { mockLoads, mockWorkflowEvents, mockCarrierAI, mockCustomerAI } from '../../data/mock'
 import { useLanguage } from '../../../i18n/LanguageContext'
 
 const statusColor = (status: string) => {
@@ -22,6 +23,34 @@ const statusColor = (status: string) => {
 }
 
 const timelineSteps = ['pending', 'quoted', 'booked', 'dispatched', 'in_transit', 'delivered', 'invoiced', 'paid']
+
+const workflowTypeLabel = (type: string, tp: any): string => {
+  const map: Record<string, string> = {
+    email_received: tp.loadLifecycle.emailReceived,
+    ai_created: tp.loadLifecycle.aiCreated,
+    carrier_suggested: tp.loadLifecycle.carrierSuggested,
+    carrier_assigned: tp.loadLifecycle.carrierAssigned,
+    rate_conf_sent: tp.loadLifecycle.rateConfSent,
+    rate_conf_accepted: tp.loadLifecycle.rateConfAccepted,
+    pickup: tp.loadLifecycle.pickup,
+    in_transit: tp.loadLifecycle.inTransit,
+    delivered: tp.loadLifecycle.delivered,
+    pod_received: tp.loadLifecycle.podReceived,
+    invoice_generated: tp.loadLifecycle.invoiceGenerated,
+    payment_received: tp.loadLifecycle.paymentReceived,
+  }
+  return map[type] || type
+}
+
+const recommendationColor = (rec: string) => {
+  const map: Record<string, string> = {
+    excellent: 'bg-green-500/15 text-green-400 border-green-500/20',
+    good: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
+    caution: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/20',
+    avoid: 'bg-red-500/15 text-red-400 border-red-500/20',
+  }
+  return map[rec] || 'bg-white/10 text-white/60 border-white/10'
+}
 
 export function LoadDetailPage() {
   const { id } = useParams()
@@ -53,6 +82,9 @@ export function LoadDetailPage() {
   }
 
   const currentStepIndex = timelineSteps.indexOf(load.status)
+  const workflowEvents = mockWorkflowEvents.filter((e) => e.loadNumber === load.loadNumber)
+  const carrierAI = load.carrierId ? mockCarrierAI.find((c) => c.carrierId === load.carrierId) : null
+  const customerAI = mockCustomerAI.find((c) => c.customerId === load.customerId)
 
   return (
     <div className="space-y-6">
@@ -97,6 +129,60 @@ export function LoadDetailPage() {
               )}
             </div>
           ))}
+        </div>
+      </motion.div>
+
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+        <h3 className="mb-5 font-display text-lg font-bold text-white">{tp.loadLifecycle.title}</h3>
+        <div className="relative ml-3">
+          <div className="absolute left-0 top-0 bottom-0 w-px bg-white/[0.06]" />
+          <div className="space-y-0">
+            {workflowEvents.map((event) => (
+              <div key={event.id} className="relative flex gap-4 pb-6 last:pb-0">
+                <div className="relative z-10 -ml-3 flex h-6 w-6 shrink-0 items-center justify-center">
+                  {event.aiGenerated ? (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-orange-500/50 bg-navy-950 text-xs">
+                      {event.icon}
+                    </div>
+                  ) : (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-blue-500/40 bg-navy-950 text-xs">
+                      {event.icon}
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-white/80">{workflowTypeLabel(event.type, tp)}</p>
+                        {event.aiGenerated && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2 py-0.5 text-[10px] font-medium text-orange-400">
+                            <CheckCircle2 className="h-3 w-3" />
+                            {tp.loadLifecycle.byAI}
+                          </span>
+                        )}
+                        {!event.aiGenerated && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-400">
+                            <Circle className="h-3 w-3" />
+                            {tp.loadLifecycle.manual}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs text-white/40">{event.description}</p>
+                    </div>
+                    <span className="shrink-0 text-[11px] text-white/30">
+                      {new Date(event.timestamp).toLocaleString('en-US', {
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {workflowEvents.length === 0 && (
+              <p className="ml-4 text-sm text-white/30">{tp.loadLifecycle.timeline}</p>
+            )}
+          </div>
         </div>
       </motion.div>
 
@@ -164,6 +250,43 @@ export function LoadDetailPage() {
             </div>
           </div>
 
+          {customerAI && (
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <h3 className="mb-4 font-display text-sm font-bold text-white/60 uppercase tracking-wider">{tp.customerAI.aiInsight}</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">{tp.customerAI.relationship}</span>
+                  <div className="flex items-center gap-0.5">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} className={`h-3.5 w-3.5 ${i < customerAI.relationshipScore ? 'fill-orange-400 text-orange-400' : 'text-white/10'}`} />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">{tp.customerAI.avgMargin}</span>
+                  <span className="text-sm font-medium text-white/70">${customerAI.avgMargin}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">{tp.customerAI.avgPayment}</span>
+                  <span className="text-sm font-medium text-white/70">{customerAI.avgPaymentDays} {tp.customerAI.days}</span>
+                </div>
+                <div className="mt-2 rounded-lg bg-blue-500/5 border border-blue-500/10 px-3 py-2">
+                  <p className="text-xs text-white/50">{customerAI.aiNote}</p>
+                </div>
+                <div className="mt-2 flex items-center justify-between rounded-lg bg-orange-500/5 border border-orange-500/10 px-3 py-2">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-white/30">{tp.customerAI.recommendedPrice}</p>
+                    <p className="font-display text-lg font-bold text-orange-400">${customerAI.priceRecommendation.toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase tracking-wider text-white/30">{tp.customerAI.confidence}</p>
+                    <p className="text-sm font-medium text-white/60">{Math.round(customerAI.priceConfidence * 100)}%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {load.carrier && (
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
               <h3 className="mb-4 font-display text-lg font-bold text-white">{tp.loads.carrierSection}</h3>
@@ -177,6 +300,42 @@ export function LoadDetailPage() {
                 )}
                 <ActionRow icon={Shield} label={tp.loads.verifyCarrier} />
                 <ActionRow icon={FileText} label={tp.loads.rateConfirmation} />
+              </div>
+            </div>
+          )}
+
+          {carrierAI && (
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+              <h3 className="mb-4 font-display text-sm font-bold text-white/60 uppercase tracking-wider">Carrier AI</h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-white/40">{tp.carrierAI.acceptanceRate}</span>
+                    <span className="text-sm font-medium text-white/70">{carrierAI.acceptanceRate}%</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
+                    <div className="h-full rounded-full bg-orange-500 transition-all" style={{ width: `${carrierAI.acceptanceRate}%` }} />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">{tp.carrierAI.onTimeRate}</span>
+                  <span className="text-sm font-medium text-white/70">{carrierAI.onTimeRate}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-white/40">{tp.carrierAI.avgNegotiation}</span>
+                  <span className="text-sm font-medium text-white/70">${Math.abs(carrierAI.avgNegotiation)}</span>
+                </div>
+                <div className="mt-2">
+                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${recommendationColor(carrierAI.aiRecommendation)}`}>
+                    {carrierAI.aiRecommendation === 'excellent' && <TrendingUp className="h-3 w-3" />}
+                    {carrierAI.aiRecommendation === 'caution' && <AlertTriangle className="h-3 w-3" />}
+                    {carrierAI.aiRecommendation === 'avoid' && <AlertTriangle className="h-3 w-3" />}
+                    {tp.carrierAI[carrierAI.aiRecommendation]}
+                  </span>
+                </div>
+                <div className="rounded-lg bg-blue-500/5 border border-blue-500/10 px-3 py-2">
+                  <p className="text-xs text-white/50">{carrierAI.aiNote}</p>
+                </div>
               </div>
             </div>
           )}
