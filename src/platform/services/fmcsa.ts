@@ -123,7 +123,7 @@ export function getCarrierScore(carrier: FMCSCarrier): { score: number; label: s
   if (carrier.safety?.total_crashes != null && carrier.safety.total_crashes > 5) score -= 10
 
   // Insurance
-  if (carrier.insurance?.bipd_on_file >= 1000000) score += 5
+  if (carrier.insurance?.bipd_on_file != null && carrier.insurance.bipd_on_file >= 1000000) score += 5
 
   score = Math.max(0, Math.min(100, score))
 

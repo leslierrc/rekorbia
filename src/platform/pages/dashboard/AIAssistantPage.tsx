@@ -362,7 +362,7 @@ export function AIAssistantPage() {
                       url={msg.audio.url}
                       duration={msg.audio.duration}
                       isPlaying={playingAudio === msg.audio.url}
-                      onToggle={() => setPlayingAudio(playingAudio === msg.audio.url ? null : msg.audio!.url)}
+                      onToggle={() => { const a = msg.audio; if (a) setPlayingAudio(playingAudio === a.url ? null : a.url) }}
                     />
                   )}
                   {msg.audio && msg.content !== '[Audio message]' && <div className="mt-1" />}
