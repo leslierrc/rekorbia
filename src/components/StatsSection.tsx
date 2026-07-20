@@ -95,7 +95,7 @@ export function ComparisonSection() {
   const { t } = useLanguage()
 
   return (
-    <section ref={ref} className="relative py-20 px-4 sm:py-32">
+    <section ref={ref} className="relative overflow-x-clip py-20 px-4 sm:py-32">
       <div className="mx-auto max-w-5xl">
         <motion.div
           initial={{ opacity: 0, y: 30 }}

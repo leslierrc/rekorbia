@@ -64,14 +64,14 @@ export function Sidebar() {
         )}
       >
         <div className={clsx(
-          'flex h-16 items-center border-b border-white/[0.06] px-4',
+          'flex h-16 min-w-0 items-center border-b border-white/[0.06] px-4',
           collapsed ? 'justify-center' : 'gap-3'
         )}>
           {!collapsed && (
             <img
               src="/assets/logos/principal-sobrenegro.svg"
               alt="REKORBIA"
-              className="h-7 w-auto object-contain"
+              className="h-7 w-auto min-w-0 max-w-[140px] object-contain"
             />
           )}
           {collapsed && (

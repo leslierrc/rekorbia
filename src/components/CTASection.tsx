@@ -15,7 +15,7 @@ export function CTASection() {
   }
 
   return (
-    <section id="contacto" ref={ref} className="relative py-20 px-4 sm:py-32">
+    <section id="contacto" ref={ref} className="relative overflow-x-clip py-20 px-4 sm:py-32">
       <div className="absolute inset-0 bg-gradient-to-t from-navy-950 via-navy-900 to-navy-950" />
       <div className="absolute bottom-0 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full bg-orange-500/15 blur-[120px]" />
 

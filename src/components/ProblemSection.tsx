@@ -17,7 +17,7 @@ export function ProblemSection() {
     }, 0)
 
   return (
-    <section id="problema" ref={ref} className="relative py-20 px-4 sm:py-32">
+    <section id="problema" ref={ref} className="relative overflow-x-clip py-20 px-4 sm:py-32">
       <div className="absolute inset-0 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-950" />
 
       <div className="relative mx-auto max-w-7xl">
