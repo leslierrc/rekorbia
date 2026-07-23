@@ -1,6 +1,7 @@
+import { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { MapPin, Truck, Clock, ArrowRight } from 'lucide-react'
-import { mockLoads } from '../../data/mock'
+import { useLoadsStore, useNotificationsStore, useWorkflowStore } from '../../store'
 import { useLanguage } from '../../../i18n/LanguageContext'
 
 const statusTranslationMap: Record<string, Record<string, string>> = {
@@ -10,8 +11,30 @@ const statusTranslationMap: Record<string, Record<string, string>> = {
 }
 
 export function TrackingPage() {
-  const activeLoads = mockLoads.filter((l) => ['dispatched', 'in_transit', 'booked'].includes(l.status))
+  const loads = useLoadsStore((s) => s.loads)
+  const addNotification = useNotificationsStore((s) => s.addNotification)
+  const addEvent = useWorkflowStore((s) => s.addEvent)
   const { tp, language } = useLanguage()
+  const activeLoads = loads.filter((l) => ['dispatched', 'in_transit', 'booked'].includes(l.status))
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const { loads: current, updateLoad: update } = useLoadsStore.getState()
+      current
+        .filter((l) => l.status === 'dispatched' || l.status === 'in_transit')
+        .forEach((l) => {
+          const next = Math.min(100, l.tracking + Math.round(4 + Math.random() * 6))
+          if (next >= 100) {
+            update(l.id, { tracking: 100, status: 'delivered' })
+            addNotification({ type: 'success', title: language === 'es' ? 'Carga entregada' : 'Load delivered', description: `#${l.loadNumber} — ${l.origin} → ${l.destination}` })
+            addEvent({ loadId: l.id, loadNumber: l.loadNumber, type: 'delivered', title: 'Load delivered', description: `Load #${l.loadNumber} arrived at ${l.destination}`, icon: 'MapPin', aiGenerated: false })
+          } else {
+            update(l.id, { tracking: next, status: 'in_transit' })
+          }
+        })
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [addNotification, addEvent, language])
 
   return (
     <div className="space-y-6">

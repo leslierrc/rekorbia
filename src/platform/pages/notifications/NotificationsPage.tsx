@@ -1,7 +1,6 @@
-import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { AlertTriangle, Info, CheckCircle2, AlertCircle, Settings } from 'lucide-react'
-import { mockNotifications } from '../../data/mock'
+import { useNotificationsStore } from '../../store'
 import { useLanguage } from '../../../i18n/LanguageContext'
 
 const typeConfig = {
@@ -12,16 +11,10 @@ const typeConfig = {
 }
 
 export function NotificationsPage() {
-  const [notifications, setNotifications] = useState(mockNotifications)
+  const notifications = useNotificationsStore((s) => s.notifications)
+  const markAllRead = useNotificationsStore((s) => s.markAllRead)
+  const markRead = useNotificationsStore((s) => s.markRead)
   const { tp } = useLanguage()
-
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
-  }
-
-  const markRead = (id: string) => {
-    setNotifications((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n))
-  }
 
   const unread = notifications.filter((n) => !n.read)
 

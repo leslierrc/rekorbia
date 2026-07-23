@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Sparkles, Bot, User, Mic, Square, Paperclip, FileSpreadsheet, X, Play, Pause } from 'lucide-react'
 import { streamChat, type ChatMessage } from '../../ai/githubModels'
+import { useLoadsStore, useInvoicesStore, useInboxStore, useNotificationsStore } from '../../store'
+import { mockCarriers } from '../../data/mock'
 
 interface AttachedFile {
   name: string
@@ -23,8 +25,48 @@ interface AppChatMessage extends ChatMessage {
 
 const WAVE_BARS = 24
 
+function buildContextSnapshot(
+  loads: ReturnType<typeof useLoadsStore.getState>['loads'],
+  invoices: ReturnType<typeof useInvoicesStore.getState>['invoices'],
+  inboxItems: ReturnType<typeof useInboxStore.getState>['items'],
+  notifications: ReturnType<typeof useNotificationsStore.getState>['notifications'],
+): string {
+  const loadLines = loads.slice(0, 15).map((l) =>
+    `#${l.loadNumber} | ${l.status} | ${l.origin} -> ${l.destination} | ${l.equipment} | ${l.weight}lbs | customer: ${l.customer} | carrier: ${l.carrier || 'unassigned'} | sell: $${l.sellRate} buy: $${l.buyRate} margin: $${l.margin} | pickup ${l.pickupDate} delivery ${l.deliveryDate}${l.tracking > 0 ? ` | ${l.tracking}% complete` : ''}`
+  ).join('\n')
+
+  const invoiceLines = invoices.slice(0, 10).map((i) =>
+    `${i.invoiceNumber} | load #${i.loadNumber} | ${i.customer} | $${i.amount} | ${i.status} | due ${i.dueDate}`
+  ).join('\n')
+
+  const carrierLines = mockCarriers.slice(0, 10).map((c) =>
+    `${c.name} | MC ${c.mcNumber} | ${c.equipment.join('/')} | safety: ${c.safetyRating} | insurance: ${c.insurance ? 'yes' : 'NO'} | status: ${c.status} | rating: ${c.rating}`
+  ).join('\n')
+
+  const pendingEmails = inboxItems.filter((e) => e.status === 'ready' || e.status === 'detected').length
+  const unreadNotifs = notifications.filter((n) => !n.read).length
+
+  return [
+    `LOADS (${loads.length} total, showing up to 15):`,
+    loadLines || 'none',
+    '',
+    `INVOICES (${invoices.length} total, showing up to 10):`,
+    invoiceLines || 'none',
+    '',
+    `CARRIERS (showing up to 10):`,
+    carrierLines || 'none',
+    '',
+    `AI INBOX: ${pendingEmails} email(s) with a detected load awaiting action.`,
+    `NOTIFICATIONS: ${unreadNotifs} unread.`,
+  ].join('\n')
+}
+
 export function AIAssistantPage() {
   const [messages, setMessages] = useState<AppChatMessage[]>([])
+  const loads = useLoadsStore((s) => s.loads)
+  const invoices = useInvoicesStore((s) => s.invoices)
+  const inboxItems = useInboxStore((s) => s.items)
+  const notifications = useNotificationsStore((s) => s.notifications)
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
@@ -96,7 +138,8 @@ export function AIAssistantPage() {
     let fullContent = ''
 
     try {
-      const stream = streamChat(newMessages)
+      const context = buildContextSnapshot(loads, invoices, inboxItems, notifications)
+      const stream = streamChat(newMessages, context)
       for await (const chunk of stream) {
         fullContent += chunk
         setMessages([...newMessages, { role: 'assistant', content: fullContent }])
@@ -107,7 +150,7 @@ export function AIAssistantPage() {
     }
 
     setIsStreaming(false)
-  }, [messages, buildMessage])
+  }, [messages, buildMessage, loads, invoices, inboxItems, notifications])
 
   // ---- Waveform animation ----
   const animateWaveform = useCallback(() => {
@@ -342,6 +385,23 @@ export function AIAssistantPage() {
               <h2 className="font-display text-2xl font-bold text-white">How can I help you today?</h2>
               <p className="mt-2 text-sm text-white/40">Type, record audio, or upload a file.</p>
             </motion.div>
+            <div className="flex flex-wrap justify-center gap-2 px-4">
+              {[
+                'What loads are in transit right now?',
+                'Which invoices are overdue?',
+                'Find a carrier for my next flatbed load',
+                'Summarize today\'s activity',
+              ].map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => handleSend(prompt)}
+                  className="rounded-full border border-white/[0.08] bg-white/[0.03] px-3.5 py-2 text-xs text-white/60 transition-colors hover:border-orange-500/30 hover:text-orange-300"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="mx-auto max-w-3xl space-y-6">

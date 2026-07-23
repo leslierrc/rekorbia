@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLanguage } from '../../../i18n/LanguageContext'
 import { useToast } from '../../components/Toast'
-import { mockAIInbox } from '../../data/mock'
+import { useInboxStore } from '../../store'
+import { createLoad, guessCustomerFromEmail } from '../../services/workflow'
+import { suggestPrice } from '../../services/pricing'
 import { Sparkles, Mail, ArrowRight, Bot, Check, X, Eye, ChevronRight, Zap } from 'lucide-react'
 
 type FilterTab = 'all' | 'ready' | 'created' | 'ignored' | 'detected'
@@ -20,7 +22,8 @@ export function AIInboxPage() {
   const { tp, language } = useLanguage()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<FilterTab>('all')
-  const [items, setItems] = useState(mockAIInbox)
+  const items = useInboxStore((s) => s.items)
+  const updateItem = useInboxStore((s) => s.updateItem)
 
   const tabs: { key: FilterTab; label: string; count: number }[] = [
     { key: 'all', label: tp.aiInbox.allEmails, count: items.length },
@@ -35,19 +38,48 @@ export function AIInboxPage() {
   const readyCount = items.filter((i) => i.status === 'ready' || i.status === 'detected').length
 
   const handleCreateLoad = (id: string) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: 'created' as const } : i)))
-    toast({ type: 'success', title: language === 'es' ? 'Carga creada' : 'Load created', description: language === 'es' ? 'Carga creada exitosamente' : 'Load created successfully' })
-    navigate('/app/loads/new')
+    const item = items.find((i) => i.id === id)
+    if (!item || !item.detectedLoad) return
+    // Broker reviews AI-extracted fields before confirming — navigate to the
+    // create-load form prefilled, don't create the load yet.
+    navigate('/app/loads/new', {
+      state: {
+        sourceEmailId: item.id,
+        emailFrom: item.emailFrom,
+        draft: item.detectedLoad,
+      },
+    })
   }
 
   const handleIgnore = (id: string) => {
-    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: 'ignored' as const } : i)))
+    updateItem(id, { status: 'ignored' })
     toast({ type: 'info', title: language === 'es' ? 'Email ignorado' : 'Email ignored', description: language === 'es' ? 'El email fue marcado como ignorado' : 'Email marked as ignored' })
   }
 
   const handleProcessAll = () => {
-    setItems((prev) => prev.map((i) => (i.status === 'ready' || i.status === 'detected' ? { ...i, status: 'created' as const } : i)))
-    toast({ type: 'success', title: language === 'es' ? 'Procesamiento completo' : 'Processing complete', description: language === 'es' ? `${readyCount} emails procesados` : `${readyCount} emails processed` })
+    const toProcess = items.filter((i) => (i.status === 'ready' || i.status === 'detected') && i.detectedLoad)
+    toProcess.forEach((item) => {
+      const dl = item.detectedLoad!
+      const customer = guessCustomerFromEmail(item.emailFrom)
+      const pricing = suggestPrice({
+        origin: dl.origin, destination: dl.destination, equipment: dl.equipment,
+        customerRecommendedPrice: dl.suggestedPrice, customerConfidence: dl.confidence,
+      })
+      createLoad({
+        status: 'pending',
+        customer: customer?.company || item.emailFrom.split('@')[1] || 'Unknown',
+        customerId: customer?.id || '0',
+        origin: dl.origin, originState: dl.originState,
+        destination: dl.destination, destinationState: dl.destinationState,
+        commodity: dl.commodity, weight: dl.weight, equipment: dl.equipment,
+        pickupDate: '', deliveryDate: '',
+        buyRate: pricing.buyRate, sellRate: dl.suggestedPrice || pricing.sellRate,
+        margin: (dl.suggestedPrice || pricing.sellRate) - pricing.buyRate,
+        mileage: pricing.mileage, tracking: 0,
+      }, { aiGenerated: true, sourceEmail: item.emailFrom })
+      updateItem(item.id, { status: 'created' })
+    })
+    toast({ type: 'success', title: language === 'es' ? 'Procesamiento completo' : 'Processing complete', description: language === 'es' ? `${toProcess.length} emails procesados` : `${toProcess.length} emails processed` })
   }
 
   const formatTimestamp = (dateStr: string) => {
@@ -220,7 +252,7 @@ export function AIInboxPage() {
                 {item.status === 'created' && (
                   <div className="flex items-center gap-2 text-sm font-medium text-green-400">
                     <Check className="h-4 w-4" />
-                    {language === 'es' ? 'Carga #1588 creada' : 'Load #1588 created'}
+                    {language === 'es' ? 'Carga creada' : 'Load created'}
                   </div>
                 )}
 

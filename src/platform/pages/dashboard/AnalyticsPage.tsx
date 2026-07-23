@@ -2,8 +2,8 @@ import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { TrendingUp, AlertTriangle, Lightbulb, Star, DollarSign, Truck, Users, BarChart3, ArrowUpRight, Sparkles, Target, Zap } from 'lucide-react'
 import { useLanguage } from '../../../i18n/LanguageContext'
-import { mockLoads, mockCustomers, mockAnalyticsInsights } from '../../data/mock'
-import { mockInvoices, mockCarriers } from '../../data/mock'
+import { mockCustomers, mockAnalyticsInsights, mockCarriers } from '../../data/mock'
+import { useLoadsStore, useInvoicesStore } from '../../store'
 
 const insightConfig = {
   trend: { icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/20', label: 'trend' as const },
@@ -21,26 +21,28 @@ const impactConfig = {
 export function AnalyticsPage() {
   const navigate = useNavigate()
   const { tp, language } = useLanguage()
+  const loads = useLoadsStore((s) => s.loads)
+  const invoices = useInvoicesStore((s) => s.invoices)
 
-  const totalRevenue = mockInvoices.filter((i) => i.status === 'paid').reduce((a, i) => a + i.amount, 0)
-  const totalMargin = mockLoads.reduce((a, l) => a + l.margin, 0)
-  const avgMargin = mockLoads.length > 0 ? Math.round(totalMargin / mockLoads.filter((l) => l.margin > 0).length) : 0
-  const totalLoads = mockLoads.length
-  const activeLoads = mockLoads.filter((l) => ['dispatched', 'in_transit'].includes(l.status)).length
-  const completedLoads = mockLoads.filter((l) => ['delivered', 'invoiced', 'paid'].includes(l.status)).length
+  const totalRevenue = invoices.filter((i) => i.status === 'paid').reduce((a, i) => a + i.amount, 0)
+  const totalMargin = loads.reduce((a, l) => a + l.margin, 0)
+  const avgMargin = loads.length > 0 ? Math.round(totalMargin / Math.max(1, loads.filter((l) => l.margin > 0).length)) : 0
+  const totalLoads = loads.length
+  const activeLoads = loads.filter((l) => ['dispatched', 'in_transit'].includes(l.status)).length
+  const completedLoads = loads.filter((l) => ['delivered', 'invoiced', 'paid'].includes(l.status)).length
   const activeCarriers = mockCarriers.filter((c) => c.status === 'verified').length
   const activeCustomers = mockCustomers.filter((c) => c.status === 'active').length
-  const pendingLoads = mockLoads.filter((l) => l.status === 'pending').length
+  const pendingLoads = loads.filter((l) => l.status === 'pending').length
 
   const statusDistribution = [
-    { status: tp.loads.pending, count: mockLoads.filter((l) => l.status === 'pending').length, color: 'bg-yellow-500' },
-    { status: tp.loads.quoted, count: mockLoads.filter((l) => l.status === 'quoted').length, color: 'bg-blue-500' },
-    { status: tp.loads.booked, count: mockLoads.filter((l) => l.status === 'booked').length, color: 'bg-indigo-500' },
-    { status: tp.loads.dispatched, count: mockLoads.filter((l) => l.status === 'dispatched').length, color: 'bg-purple-500' },
-    { status: tp.loads.in_transit, count: mockLoads.filter((l) => l.status === 'in_transit').length, color: 'bg-orange-500' },
-    { status: tp.loads.delivered, count: mockLoads.filter((l) => l.status === 'delivered').length, color: 'bg-green-500' },
-    { status: tp.loads.invoiced, count: mockLoads.filter((l) => l.status === 'invoiced').length, color: 'bg-cyan-500' },
-    { status: tp.loads.paid, count: mockLoads.filter((l) => l.status === 'paid').length, color: 'bg-emerald-500' },
+    { status: tp.loads.pending, count: loads.filter((l) => l.status === 'pending').length, color: 'bg-yellow-500' },
+    { status: tp.loads.quoted, count: loads.filter((l) => l.status === 'quoted').length, color: 'bg-blue-500' },
+    { status: tp.loads.booked, count: loads.filter((l) => l.status === 'booked').length, color: 'bg-indigo-500' },
+    { status: tp.loads.dispatched, count: loads.filter((l) => l.status === 'dispatched').length, color: 'bg-purple-500' },
+    { status: tp.loads.in_transit, count: loads.filter((l) => l.status === 'in_transit').length, color: 'bg-orange-500' },
+    { status: tp.loads.delivered, count: loads.filter((l) => l.status === 'delivered').length, color: 'bg-green-500' },
+    { status: tp.loads.invoiced, count: loads.filter((l) => l.status === 'invoiced').length, color: 'bg-cyan-500' },
+    { status: tp.loads.paid, count: loads.filter((l) => l.status === 'paid').length, color: 'bg-emerald-500' },
   ]
 
   const maxCount = Math.max(...statusDistribution.map((s) => s.count), 1)

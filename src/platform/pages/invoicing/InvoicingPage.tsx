@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Search, Receipt, Clock, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { mockInvoices } from '../../data/mock'
+import { useInvoicesStore, useLoadsStore } from '../../store'
+import { useToast } from '../../components/Toast'
+import { generateInvoiceForLoad } from '../../services/workflow'
 import { useLanguage } from '../../../i18n/LanguageContext'
 
 const statusConfig = {
@@ -14,11 +16,36 @@ const statusConfig = {
 
 export function InvoicingPage() {
   const navigate = useNavigate()
-  const { tp } = useLanguage()
+  const { tp, language } = useLanguage()
+  const { toast } = useToast()
+  const invoices = useInvoicesStore((s) => s.invoices)
+  const updateInvoice = useInvoicesStore((s) => s.updateInvoice)
+  const loads = useLoadsStore((s) => s.loads)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'draft' | 'pending' | 'overdue' | 'paid'>('all')
 
-  const filtered = mockInvoices
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    invoices.forEach((inv) => {
+      if (inv.status === 'pending' && inv.dueDate < today) {
+        updateInvoice(inv.id, { status: 'overdue' })
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoices])
+
+  const handleNewInvoice = () => {
+    const invoicedLoadIds = new Set(invoices.map((i) => i.loadId))
+    const eligible = loads.find((l) => l.status === 'delivered' && !invoicedLoadIds.has(l.id))
+    if (!eligible) {
+      toast({ type: 'warning', title: language === 'es' ? 'Nada por facturar' : 'Nothing to invoice', description: language === 'es' ? 'No hay cargas entregadas sin factura' : 'No delivered loads are missing an invoice' })
+      return
+    }
+    const invoice = generateInvoiceForLoad(eligible)
+    toast({ type: 'success', title: language === 'es' ? 'Factura creada' : 'Invoice created', description: invoice.invoiceNumber })
+  }
+
+  const filtered = invoices
     .filter((i) => filter === 'all' || i.status === filter)
     .filter((i) =>
       search === '' ||
@@ -26,9 +53,9 @@ export function InvoicingPage() {
       i.customer.toLowerCase().includes(search.toLowerCase())
     )
 
-  const totalPending = mockInvoices.filter((i) => i.status === 'pending').reduce((a, i) => a + i.amount, 0)
-  const totalOverdue = mockInvoices.filter((i) => i.status === 'overdue').reduce((a, i) => a + i.amount, 0)
-  const totalPaid = mockInvoices.filter((i) => i.status === 'paid').reduce((a, i) => a + i.amount, 0)
+  const totalPending = invoices.filter((i) => i.status === 'pending').reduce((a, i) => a + i.amount, 0)
+  const totalOverdue = invoices.filter((i) => i.status === 'overdue').reduce((a, i) => a + i.amount, 0)
+  const totalPaid = invoices.filter((i) => i.status === 'paid').reduce((a, i) => a + i.amount, 0)
 
   const filterLabels: Record<string, string> = {
     all: tp.invoicing.all,
@@ -45,7 +72,7 @@ export function InvoicingPage() {
           <h1 className="font-display text-2xl font-bold text-white">{tp.invoicing.title}</h1>
           <p className="mt-1 text-sm text-white/50">{tp.invoicing.subtitle}</p>
         </div>
-        <button type="button" className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-orange-400 hover:shadow-lg hover:shadow-orange-500/25">
+        <button type="button" onClick={handleNewInvoice} className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-orange-400 hover:shadow-lg hover:shadow-orange-500/25">
           <Plus className="h-4 w-4" /> {tp.invoicing.newInvoice}
         </button>
       </motion.div>

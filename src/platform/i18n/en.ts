@@ -108,6 +108,7 @@ export const platformEn = {
     delivered: 'Delivered',
     invoiced: 'Invoiced',
     paid: 'Paid',
+    archived: 'Archived',
     customer: 'Customer',
     route: 'Route',
     equipment: 'Equipment',

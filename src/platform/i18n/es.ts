@@ -108,6 +108,7 @@ export const platformEs = {
     delivered: 'Entregada',
     invoiced: 'Facturada',
     paid: 'Pagada',
+    archived: 'Archivada',
     customer: 'Cliente',
     route: 'Ruta',
     equipment: 'Equipo',

@@ -28,7 +28,15 @@ export function hasGitHubToken(): boolean {
   return !!getToken()
 }
 
-export async function completeChat(messages: ChatMessage[]): Promise<AIResponse> {
+function buildSystemMessages(context?: string): ChatMessage[] {
+  const messages: ChatMessage[] = [{ role: 'system', content: FREIGHT_BROKER_SYSTEM_PROMPT }]
+  if (context) {
+    messages.push({ role: 'system', content: `## LIVE REKORBIA DATA (current session state)\n\n${context}\n\nUse this real data when the user asks about specific loads, carriers, invoices, or numbers. Never invent load numbers, rates, or figures that aren't in this snapshot — if something isn't here, say you don't have that data yet.` })
+  }
+  return messages
+}
+
+export async function completeChat(messages: ChatMessage[], context?: string): Promise<AIResponse> {
   const token = getToken()
   if (!token) {
     return {
@@ -47,7 +55,7 @@ export async function completeChat(messages: ChatMessage[]): Promise<AIResponse>
       },
       body: JSON.stringify({
         model: AI_CONFIG.model,
-        messages: [{ role: 'system', content: FREIGHT_BROKER_SYSTEM_PROMPT }, ...messages],
+        messages: [...buildSystemMessages(context), ...messages],
         temperature: AI_CONFIG.temperature,
         max_tokens: AI_CONFIG.maxTokens,
       }),
@@ -76,7 +84,7 @@ export async function completeChat(messages: ChatMessage[]): Promise<AIResponse>
   }
 }
 
-export async function* streamChat(messages: ChatMessage[]): AsyncGenerator<string, void, unknown> {
+export async function* streamChat(messages: ChatMessage[], context?: string): AsyncGenerator<string, void, unknown> {
   const token = getToken()
   if (!token) {
     yield 'No GitHub token configured. Click the gear icon to add your GitHub Personal Access Token.'
@@ -93,7 +101,7 @@ export async function* streamChat(messages: ChatMessage[]): AsyncGenerator<strin
       },
       body: JSON.stringify({
         model: AI_CONFIG.model,
-        messages: [{ role: 'system', content: FREIGHT_BROKER_SYSTEM_PROMPT }, ...messages],
+        messages: [...buildSystemMessages(context), ...messages],
         temperature: AI_CONFIG.temperature,
         max_tokens: AI_CONFIG.maxTokens,
         stream: true,

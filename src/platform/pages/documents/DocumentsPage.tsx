@@ -2,27 +2,9 @@ import { useState } from 'react'
 import { useLanguage } from '../../../i18n/LanguageContext'
 import { FileText, Upload, Search, Eye, Download, Trash2, Bot, CheckCircle2, ArrowRight, File, Zap } from 'lucide-react'
 import { motion } from 'framer-motion'
-
-interface Doc {
-  id: string
-  name: string
-  type: 'rate_confirmation' | 'bol' | 'pod' | 'invoice' | 'carrier_packet'
-  loadNumber: number
-  status: 'ready' | 'pending' | 'signed'
-  createdAt: string
-  size: string
-  extractedData?: string
-}
-
-const mockDocs: Doc[] = [
-  { id: '1', name: 'RC-1587-LoneStar.pdf', type: 'rate_confirmation', loadNumber: 1587, status: 'ready', createdAt: '2026-07-18', size: '245 KB', extractedData: 'Load #1587 · $2,450 · Dallas → Atlanta' },
-  { id: '2', name: 'BOL-1587-ABCLogistics.pdf', type: 'bol', loadNumber: 1587, status: 'pending', createdAt: '2026-07-18', size: '189 KB' },
-  { id: '3', name: 'POD-1584-NexGen.pdf', type: 'pod', loadNumber: 1584, status: 'signed', createdAt: '2026-07-18', size: '1.2 MB', extractedData: 'Load #1584 · $3,100 · Houston → Chicago' },
-  { id: '4', name: 'INV-2026-0089-ABC.pdf', type: 'invoice', loadNumber: 1583, status: 'ready', createdAt: '2026-07-17', size: '312 KB', extractedData: 'Invoice #0089 · $1,875 · Due Aug 1' },
-  { id: '5', name: 'CP-LoneStarTrucking.pdf', type: 'carrier_packet', loadNumber: 0, status: 'ready', createdAt: '2026-07-15', size: '2.1 MB' },
-  { id: '6', name: 'RC-1586-EagleFreight.pdf', type: 'rate_confirmation', loadNumber: 1586, status: 'ready', createdAt: '2026-07-18', size: '248 KB', extractedData: 'Load #1586 · $2,890 · Miami → Nashville' },
-  { id: '7', name: 'BOL-1581-PacificCoast.pdf', type: 'bol', loadNumber: 1581, status: 'pending', createdAt: '2026-07-19', size: '192 KB' },
-]
+import { useDocumentsStore, useLoadsStore } from '../../store'
+import { useToast } from '../../components/Toast'
+import { processPodAndInvoice, generateInvoiceForLoad } from '../../services/workflow'
 
 const typeColors: Record<string, string> = {
   rate_confirmation: 'bg-blue-500/15 text-blue-400',
@@ -35,11 +17,17 @@ const typeColors: Record<string, string> = {
 const pipelineSteps = ['upload', 'aiReads', 'detects', 'signs', 'archives', 'invoiceReady'] as const
 const stepIcons = [Upload, FileText, Zap, CheckCircle2, File, ArrowRight]
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
 export function DocumentsPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<string>('all')
-  const [activePipelineStep] = useState(2)
-  const { tp } = useLanguage()
+  const [activePipelineStep, setActivePipelineStep] = useState(-1)
+  const { tp, language } = useLanguage()
+  const { toast } = useToast()
+  const docs = useDocumentsStore((s) => s.docs)
+  const removeDoc = useDocumentsStore((s) => s.removeDoc)
+  const loads = useLoadsStore((s) => s.loads)
 
   const typeLabels: Record<string, string> = {
     rate_confirmation: tp.documents.rateConfirmation,
@@ -51,9 +39,54 @@ export function DocumentsPage() {
 
   const types = ['all', 'rate_confirmation', 'bol', 'pod', 'invoice', 'carrier_packet']
 
-  const filtered = mockDocs
+  const filtered = docs
     .filter((d) => filter === 'all' || d.type === filter)
     .filter((d) => search === '' || d.name.toLowerCase().includes(search.toLowerCase()) || `#${d.loadNumber}`.includes(search))
+
+  const handleUploadPod = async () => {
+    setActivePipelineStep(0)
+    await sleep(350)
+    setActivePipelineStep(1)
+    await sleep(500)
+    setActivePipelineStep(2)
+    const target = loads.find((l) => l.status === 'delivered')
+    if (!target) {
+      await sleep(400)
+      setActivePipelineStep(-1)
+      toast({ type: 'warning', title: language === 'es' ? 'Nada para procesar' : 'Nothing to process', description: language === 'es' ? 'No hay cargas entregadas esperando POD' : 'No delivered loads are awaiting a POD' })
+      return
+    }
+    await sleep(500)
+    setActivePipelineStep(3)
+    processPodAndInvoice(target)
+    await sleep(400)
+    setActivePipelineStep(5)
+    toast({ type: 'success', title: language === 'es' ? 'POD procesado' : 'POD processed', description: `Load #${target.loadNumber} → ${language === 'es' ? 'factura generada' : 'invoice generated'}` })
+    setTimeout(() => setActivePipelineStep(-1), 1200)
+  }
+
+  const handleView = (name: string) => {
+    toast({ type: 'info', title: language === 'es' ? 'Abriendo documento' : 'Opening document', description: name })
+  }
+
+  const handleDownload = (name: string) => {
+    toast({ type: 'success', title: language === 'es' ? 'Descargando…' : 'Downloading…', description: name })
+  }
+
+  const handleDelete = (id: string, name: string) => {
+    removeDoc(id)
+    toast({ type: 'info', title: language === 'es' ? 'Documento eliminado' : 'Document deleted', description: name })
+  }
+
+  const handleGenerateInvoiceForDoc = (loadNumber: number) => {
+    const load = loads.find((l) => l.loadNumber === loadNumber)
+    if (!load) {
+      toast({ type: 'warning', title: language === 'es' ? 'Carga no encontrada' : 'Load not found', description: `#${loadNumber}` })
+      return
+    }
+    generateInvoiceForLoad(load)
+    toast({ type: 'success', title: language === 'es' ? 'Factura generada' : 'Invoice generated', description: `Load #${load.loadNumber}` })
+  }
 
   return (
     <div className="space-y-6">
@@ -105,13 +138,19 @@ export function DocumentsPage() {
       </motion.div>
 
       {/* Drag & Drop Zone */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="group rounded-2xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] p-10 text-center transition-all hover:border-orange-500/40 hover:bg-orange-500/[0.03] hover:shadow-lg hover:shadow-orange-500/5 cursor-pointer">
+      <motion.button
+        type="button"
+        onClick={handleUploadPod}
+        disabled={activePipelineStep >= 0}
+        initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+        className="group w-full rounded-2xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] p-10 text-center transition-all hover:border-orange-500/40 hover:bg-orange-500/[0.03] hover:shadow-lg hover:shadow-orange-500/5 disabled:cursor-wait disabled:opacity-70"
+      >
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-orange-500/10 transition-all group-hover:bg-orange-500/20 group-hover:scale-110">
           <Bot className="h-8 w-8 text-orange-400" />
         </div>
         <p className="mt-4 text-sm font-medium text-white/60 group-hover:text-white/80">{tp.documentsAI.dragDrop}</p>
         <p className="mt-1 text-xs text-white/30 group-hover:text-white/40">AI will automatically read, detect, and process</p>
-      </motion.div>
+      </motion.button>
 
       {/* Search + Filters */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="flex flex-col gap-4 sm:flex-row">
@@ -176,18 +215,18 @@ export function DocumentsPage() {
 
             <div className="mt-3 flex items-center justify-between border-t border-white/[0.04] pt-3">
               <div className="flex gap-1">
-                <button type="button" className="rounded-lg p-2 text-white/30 transition-colors hover:bg-white/5 hover:text-white/60" title={tp.documents.view}>
+                <button type="button" onClick={() => handleView(doc.name)} className="rounded-lg p-2 text-white/30 transition-colors hover:bg-white/5 hover:text-white/60" title={tp.documents.view}>
                   <Eye className="h-4 w-4" />
                 </button>
-                <button type="button" className="rounded-lg p-2 text-white/30 transition-colors hover:bg-white/5 hover:text-white/60" title={tp.documents.download}>
+                <button type="button" onClick={() => handleDownload(doc.name)} className="rounded-lg p-2 text-white/30 transition-colors hover:bg-white/5 hover:text-white/60" title={tp.documents.download}>
                   <Download className="h-4 w-4" />
                 </button>
-                <button type="button" className="rounded-lg p-2 text-white/30 transition-colors hover:bg-white/5 hover:text-red-400" title={tp.documents.delete}>
+                <button type="button" onClick={() => handleDelete(doc.id, doc.name)} className="rounded-lg p-2 text-white/30 transition-colors hover:bg-white/5 hover:text-red-400" title={tp.documents.delete}>
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
-              {(doc.status === 'signed' || doc.status === 'ready') && doc.type !== 'invoice' && (
-                <button type="button" className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500/10 px-3 py-1.5 text-[11px] font-medium text-orange-400 transition-all hover:bg-orange-500/20">
+              {(doc.status === 'signed' || doc.status === 'ready') && doc.type !== 'invoice' && doc.loadNumber > 0 && (
+                <button type="button" onClick={() => handleGenerateInvoiceForDoc(doc.loadNumber)} className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500/10 px-3 py-1.5 text-[11px] font-medium text-orange-400 transition-all hover:bg-orange-500/20">
                   <Zap className="h-3 w-3" /> {tp.documentsAI.generateInvoice}
                 </button>
               )}

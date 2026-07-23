@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Plus, Search, Filter, Truck, ArrowUpDown } from 'lucide-react'
-import { mockLoads } from '../../data/mock'
+import { useLoadsStore } from '../../store'
 import { useLanguage } from '../../../i18n/LanguageContext'
 
 const statusColor = (status: string) => {
@@ -15,6 +15,7 @@ const statusColor = (status: string) => {
     delivered: 'bg-green-500/15 text-green-400',
     invoiced: 'bg-cyan-500/15 text-cyan-400',
     paid: 'bg-emerald-500/15 text-emerald-400',
+    archived: 'bg-white/15 text-white/50',
   }
   return map[status] || 'bg-white/10 text-white/60'
 }
@@ -22,12 +23,13 @@ const statusColor = (status: string) => {
 export function LoadsListPage() {
   const navigate = useNavigate()
   const { tp } = useLanguage()
+  const loads = useLoadsStore((s) => s.loads)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortField, setSortField] = useState<'loadNumber' | 'sellRate' | 'pickupDate'>('loadNumber')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  const statuses = ['all', 'pending', 'quoted', 'booked', 'dispatched', 'in_transit', 'delivered', 'invoiced', 'paid'] as const
+  const statuses = ['all', 'pending', 'quoted', 'booked', 'dispatched', 'in_transit', 'delivered', 'invoiced', 'paid', 'archived'] as const
 
   const statusTranslationMap: Record<string, string> = {
     all: tp.loads.all,
@@ -39,9 +41,10 @@ export function LoadsListPage() {
     delivered: tp.loads.delivered,
     invoiced: tp.loads.invoiced,
     paid: tp.loads.paid,
+    archived: tp.loads.archived,
   }
 
-  const filtered = mockLoads
+  const filtered = loads
     .filter((l) => statusFilter === 'all' || l.status === statusFilter)
     .filter((l) =>
       search === '' ||

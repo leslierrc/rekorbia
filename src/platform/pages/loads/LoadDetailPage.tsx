@@ -1,12 +1,18 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { useRef, useState } from 'react'
 import {
   ArrowLeft, Truck, MapPin, Calendar, Weight, DollarSign, User,
   Phone, Mail, MessageSquare, FileText, Clock, Shield, Edit3,
-  Star, TrendingUp, AlertTriangle, CheckCircle2, Circle,
+  Star, TrendingUp, AlertTriangle, CheckCircle2, Circle, ArrowRightCircle, Archive,
 } from 'lucide-react'
-import { mockLoads, mockWorkflowEvents, mockCarrierAI, mockCustomerAI } from '../../data/mock'
+import { mockCarrierAI, mockCustomerAI, mockCustomers, type Load } from '../../data/mock'
 import { useLanguage } from '../../../i18n/LanguageContext'
+import { useLoadsStore, useWorkflowStore, useInvoicesStore } from '../../store'
+import { useToast } from '../../components/Toast'
+import { suggestPrice } from '../../services/pricing'
+import { applyQuote, findBestCarrier, assignCarrier, advanceLoadStatus, generateAndSendRateConfirmation, processPodAndInvoice } from '../../services/workflow'
+import { sendEmail, sendWhatsApp } from '../../services/comms'
 
 const statusColor = (status: string) => {
   const map: Record<string, string> = {
@@ -18,11 +24,12 @@ const statusColor = (status: string) => {
     delivered: 'bg-green-500/15 text-green-400',
     invoiced: 'bg-cyan-500/15 text-cyan-400',
     paid: 'bg-emerald-500/15 text-emerald-400',
+    archived: 'bg-white/15 text-white/50',
   }
   return map[status] || 'bg-white/10 text-white/60'
 }
 
-const timelineSteps = ['pending', 'quoted', 'booked', 'dispatched', 'in_transit', 'delivered', 'invoiced', 'paid']
+const timelineSteps: Load['status'][] = ['pending', 'quoted', 'booked', 'dispatched', 'in_transit', 'delivered', 'invoiced', 'paid', 'archived']
 
 const workflowTypeLabel = (type: string, tp: any): string => {
   const map: Record<string, string> = {
@@ -55,8 +62,12 @@ const recommendationColor = (rec: string) => {
 export function LoadDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { tp } = useLanguage()
-  const load = mockLoads.find((l) => l.id === id)
+  const { tp, language } = useLanguage()
+  const { toast } = useToast()
+  const load = useLoadsStore((s) => s.loads.find((l) => l.id === id))
+  const events = useWorkflowStore((s) => s.events)
+  const [busy, setBusy] = useState<string | null>(null)
+  const timelineRef = useRef<HTMLDivElement>(null)
 
   const statusTranslationMap: Record<string, string> = {
     pending: tp.loads.pending,
@@ -67,6 +78,7 @@ export function LoadDetailPage() {
     delivered: tp.loads.delivered,
     invoiced: tp.loads.invoiced,
     paid: tp.loads.paid,
+    archived: tp.loads.archived,
   }
 
   if (!load) {
@@ -82,9 +94,65 @@ export function LoadDetailPage() {
   }
 
   const currentStepIndex = timelineSteps.indexOf(load.status)
-  const workflowEvents = mockWorkflowEvents.filter((e) => e.loadNumber === load.loadNumber)
+  const workflowEvents = events.filter((e) => e.loadNumber === load.loadNumber)
   const carrierAI = load.carrierId ? mockCarrierAI.find((c) => c.carrierId === load.carrierId) : null
   const customerAI = mockCustomerAI.find((c) => c.customerId === load.customerId)
+  const customerRecord = mockCustomers.find((c) => c.id === load.customerId)
+
+  const withBusy = async (key: string, fn: () => Promise<void> | void) => {
+    setBusy(key)
+    try {
+      await fn()
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const handleGetAIQuote = () => withBusy('quote', async () => {
+    const q = suggestPrice({ origin: load.origin, destination: load.destination, equipment: load.equipment, customerRecommendedPrice: customerAI?.priceRecommendation, customerConfidence: customerAI?.priceConfidence })
+    applyQuote(load, q)
+    toast({ type: 'success', title: language === 'es' ? 'Cotización IA aplicada' : 'AI quote applied', description: `Sell $${q.sellRate.toLocaleString()} · Buy $${q.buyRate.toLocaleString()}` })
+  })
+
+  const handleFindCarrier = () => withBusy('carrier', async () => {
+    const best = findBestCarrier(load)
+    if (!best) {
+      toast({ type: 'warning', title: language === 'es' ? 'Sin transportistas disponibles' : 'No carriers available', description: language === 'es' ? `Ningún transportista verificado maneja ${load.equipment}` : `No verified carrier handles ${load.equipment}` })
+      return
+    }
+    assignCarrier(load, best.carrier)
+    toast({ type: 'success', title: language === 'es' ? 'Transportista asignado' : 'Carrier assigned', description: best.carrier.name })
+  })
+
+  const handleGenerateDocuments = () => withBusy('docs', async () => {
+    if (!load.carrier) {
+      toast({ type: 'warning', title: language === 'es' ? 'Asigná un transportista primero' : 'Assign a carrier first', description: language === 'es' ? 'Se necesita un transportista para generar la Rate Confirmation' : 'A carrier is needed to generate the Rate Confirmation' })
+      return
+    }
+    await generateAndSendRateConfirmation(load)
+    toast({ type: 'success', title: language === 'es' ? 'Documentos generados' : 'Documents generated', description: language === 'es' ? 'Rate Confirmation descargada y enviada' : 'Rate Confirmation downloaded and sent' })
+  })
+
+  const handleSendUpdate = () => withBusy('update', async () => {
+    const email = customerRecord?.email || `${load.customer.toLowerCase().replace(/\s+/g, '')}@example.com`
+    await sendEmail(email, `Update — Load #${load.loadNumber}`, `${statusTranslationMap[load.status]} · ${load.origin} → ${load.destination}`)
+    toast({ type: 'success', title: language === 'es' ? 'Actualización enviada' : 'Update sent', description: email })
+  })
+
+  const handleAdvance = (status: Load['status'], label: string) => withBusy(status, async () => {
+    if (status === 'delivered') {
+      advanceLoadStatus(load, status)
+    } else if (status === 'invoiced') {
+      processPodAndInvoice(load)
+    } else if (status === 'paid') {
+      advanceLoadStatus(load, status)
+      const invoice = useInvoicesStore.getState().invoices.find((i) => i.loadId === load.id)
+      if (invoice) useInvoicesStore.getState().updateInvoice(invoice.id, { status: 'paid', paidDate: new Date().toISOString().slice(0, 10) })
+    } else {
+      advanceLoadStatus(load, status)
+    }
+    toast({ type: 'success', title: label, description: `Load #${load.loadNumber}` })
+  })
 
   return (
     <div className="space-y-6">
@@ -132,7 +200,7 @@ export function LoadDetailPage() {
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+      <motion.div ref={timelineRef} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
         <h3 className="mb-5 font-display text-lg font-bold text-white">{tp.loadLifecycle.title}</h3>
         <div className="relative ml-3">
           <div className="absolute left-0 top-0 bottom-0 w-px bg-white/[0.06]" />
@@ -244,9 +312,13 @@ export function LoadDetailPage() {
             <h3 className="mb-4 font-display text-lg font-bold text-white">{tp.loads.customerSection}</h3>
             <div className="space-y-3">
               <p className="text-sm font-medium text-white/80">{load.customer}</p>
-              <ActionRow icon={Mail} label={tp.loads.sendEmail} />
-              <ActionRow icon={Phone} label={tp.loads.call} />
-              <ActionRow icon={MessageSquare} label={tp.loads.message} />
+              <ActionRow icon={Mail} label={tp.loads.sendEmail} disabled={busy === 'update'} onClick={handleSendUpdate} />
+              <ActionRow icon={Phone} label={tp.loads.call} onClick={() => toast({ type: 'info', title: language === 'es' ? 'Llamando…' : 'Calling…', description: customerRecord?.phone || load.customer })} />
+              <ActionRow icon={MessageSquare} label={tp.loads.message} disabled={busy === 'whatsapp'} onClick={() => withBusy('whatsapp', async () => {
+                const phone = customerRecord?.phone || 'unknown'
+                await sendWhatsApp(phone, `Load #${load.loadNumber}: ${statusTranslationMap[load.status]} — ${load.origin} → ${load.destination}`)
+                toast({ type: 'success', title: language === 'es' ? 'WhatsApp enviado' : 'WhatsApp sent', description: phone })
+              })} />
             </div>
           </div>
 
@@ -298,8 +370,8 @@ export function LoadDetailPage() {
                     {load.driver}
                   </div>
                 )}
-                <ActionRow icon={Shield} label={tp.loads.verifyCarrier} />
-                <ActionRow icon={FileText} label={tp.loads.rateConfirmation} />
+                <ActionRow icon={Shield} label={tp.loads.verifyCarrier} onClick={() => navigate('/app/carriers')} />
+                <ActionRow icon={FileText} label={tp.loads.rateConfirmation} disabled={busy === 'docs'} onClick={handleGenerateDocuments} />
               </div>
             </div>
           )}
@@ -344,22 +416,52 @@ export function LoadDetailPage() {
             <h3 className="mb-4 font-display text-lg font-bold text-white">{tp.loads.actions}</h3>
             <div className="space-y-2">
               {load.status === 'pending' && (
-                <button type="button" className="flex w-full items-center gap-2 rounded-lg bg-orange-500/10 px-3 py-2.5 text-sm font-medium text-orange-400 transition-colors hover:bg-orange-500/20">
-                  <DollarSign className="h-4 w-4" /> {tp.loads.getAIQuote}
+                <button type="button" disabled={busy === 'quote'} onClick={handleGetAIQuote} className="flex w-full items-center gap-2 rounded-lg bg-orange-500/10 px-3 py-2.5 text-sm font-medium text-orange-400 transition-colors hover:bg-orange-500/20 disabled:opacity-50">
+                  <DollarSign className="h-4 w-4" /> {busy === 'quote' ? tp.createLoad.processing : tp.loads.getAIQuote}
                 </button>
               )}
               {['pending', 'quoted'].includes(load.status) && (
-                <button type="button" className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08]">
-                  <Truck className="h-4 w-4" /> {tp.loads.findCarrier}
+                <button type="button" disabled={busy === 'carrier'} onClick={handleFindCarrier} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-50">
+                  <Truck className="h-4 w-4" /> {busy === 'carrier' ? tp.createLoad.processing : tp.loads.findCarrier}
                 </button>
               )}
-              <button type="button" className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08]">
-                <FileText className="h-4 w-4" /> {tp.loads.generateDocuments}
+              {load.status === 'booked' && (
+                <button type="button" disabled={busy === 'dispatched'} onClick={() => handleAdvance('dispatched', language === 'es' ? 'Carga despachada' : 'Load dispatched')} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-50">
+                  <ArrowRightCircle className="h-4 w-4" /> {language === 'es' ? 'Marcar Despachada' : 'Mark Dispatched'}
+                </button>
+              )}
+              {load.status === 'dispatched' && (
+                <button type="button" disabled={busy === 'in_transit'} onClick={() => handleAdvance('in_transit', language === 'es' ? 'Carga recogida' : 'Load picked up')} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-50">
+                  <ArrowRightCircle className="h-4 w-4" /> {language === 'es' ? 'Marcar Recogida' : 'Mark Picked Up'}
+                </button>
+              )}
+              {load.status === 'in_transit' && (
+                <button type="button" disabled={busy === 'delivered'} onClick={() => handleAdvance('delivered', language === 'es' ? 'Carga entregada' : 'Load delivered')} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-50">
+                  <ArrowRightCircle className="h-4 w-4" /> {language === 'es' ? 'Marcar Entregada' : 'Mark Delivered'}
+                </button>
+              )}
+              {load.status === 'delivered' && (
+                <button type="button" disabled={busy === 'invoiced'} onClick={() => handleAdvance('invoiced', language === 'es' ? 'Factura generada' : 'Invoice generated')} className="flex w-full items-center gap-2 rounded-lg bg-orange-500/10 px-3 py-2.5 text-sm font-medium text-orange-400 transition-colors hover:bg-orange-500/20 disabled:opacity-50">
+                  <FileText className="h-4 w-4" /> {busy === 'invoiced' ? tp.createLoad.processing : (language === 'es' ? 'Procesar POD y Facturar' : 'Process POD & Invoice')}
+                </button>
+              )}
+              {load.status === 'invoiced' && (
+                <button type="button" disabled={busy === 'paid'} onClick={() => handleAdvance('paid', language === 'es' ? 'Pago recibido' : 'Payment received')} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-50">
+                  <DollarSign className="h-4 w-4" /> {language === 'es' ? 'Marcar Pagada' : 'Mark Paid'}
+                </button>
+              )}
+              {load.status === 'paid' && (
+                <button type="button" disabled={busy === 'archived'} onClick={() => handleAdvance('archived', language === 'es' ? 'Carga archivada' : 'Load archived')} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-50">
+                  <Archive className="h-4 w-4" /> {language === 'es' ? 'Archivar Carga' : 'Archive Load'}
+                </button>
+              )}
+              <button type="button" disabled={busy === 'docs'} onClick={handleGenerateDocuments} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-50">
+                <FileText className="h-4 w-4" /> {busy === 'docs' ? tp.createLoad.processing : tp.loads.generateDocuments}
               </button>
-              <button type="button" className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08]">
-                <MessageSquare className="h-4 w-4" /> {tp.loads.sendUpdate}
+              <button type="button" disabled={busy === 'update'} onClick={handleSendUpdate} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08] disabled:opacity-50">
+                <MessageSquare className="h-4 w-4" /> {busy === 'update' ? tp.createLoad.processing : tp.loads.sendUpdate}
               </button>
-              <button type="button" className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08]">
+              <button type="button" onClick={() => timelineRef.current?.scrollIntoView({ behavior: 'smooth' })} className="flex w-full items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2.5 text-sm font-medium text-white/60 transition-colors hover:bg-white/[0.08]">
                 <Clock className="h-4 w-4" /> {tp.loads.activityLog}
               </button>
             </div>
@@ -382,9 +484,9 @@ function DetailItem({ icon: Icon, label, value }: { icon: typeof Truck; label: s
   )
 }
 
-function ActionRow({ icon: Icon, label }: { icon: typeof Truck; label: string }) {
+function ActionRow({ icon: Icon, label, onClick, disabled }: { icon: typeof Truck; label: string; onClick?: () => void; disabled?: boolean }) {
   return (
-    <button type="button" className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/[0.04] hover:text-white/70">
+    <button type="button" onClick={onClick} disabled={disabled} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/[0.04] hover:text-white/70 disabled:opacity-50">
       <Icon className="h-4 w-4" />
       {label}
     </button>

@@ -37,7 +37,7 @@ export interface Carrier {
 export interface Load {
   id: string
   loadNumber: number
-  status: 'pending' | 'quoted' | 'booked' | 'dispatched' | 'in_transit' | 'delivered' | 'invoiced' | 'paid'
+  status: 'pending' | 'quoted' | 'booked' | 'dispatched' | 'in_transit' | 'delivered' | 'invoiced' | 'paid' | 'archived'
   customer: string
   customerId: string
   origin: string
@@ -290,4 +290,25 @@ export const mockAnalyticsInsights: AnalyticsInsight[] = [
   { id: '4', type: 'opportunity', title: 'ABC Logistics upsell potential', description: 'Robert Chen\'s average margin is $580/load. He\'s been asking about new lanes. Propose Houston → Atlanta at premium rate.', impact: 'high', metric: '$580', change: 'avg margin' },
   { id: '5', type: 'alert', title: 'Pacific Coast Insurance expiring', description: 'Pacific Coast Hauling (MC-789012) insurance expires in 5 days. Temporarily suspend load assignments until renewed.', impact: 'medium', metric: '5 days', change: 'until expiry' },
   { id: '6', type: 'recommendation', title: 'Prioritize Midwest Mega Transport', description: '98% on-time rate, fastest response. Use for all time-sensitive loads. They have capacity on Dallas → Chicago lane.', impact: 'low', metric: '98%', change: 'on-time' },
+]
+
+export interface DocRecord {
+  id: string
+  name: string
+  type: 'rate_confirmation' | 'bol' | 'pod' | 'invoice' | 'carrier_packet'
+  loadNumber: number
+  status: 'ready' | 'pending' | 'signed'
+  createdAt: string
+  size: string
+  extractedData?: string
+}
+
+export const mockDocuments: DocRecord[] = [
+  { id: '1', name: 'RC-1587-LoneStar.pdf', type: 'rate_confirmation', loadNumber: 1587, status: 'ready', createdAt: '2026-07-18', size: '245 KB', extractedData: 'Load #1587 · $2,450 · Dallas → Atlanta' },
+  { id: '2', name: 'BOL-1587-ABCLogistics.pdf', type: 'bol', loadNumber: 1587, status: 'pending', createdAt: '2026-07-18', size: '189 KB' },
+  { id: '3', name: 'POD-1584-NexGen.pdf', type: 'pod', loadNumber: 1584, status: 'signed', createdAt: '2026-07-18', size: '1.2 MB', extractedData: 'Load #1584 · $3,100 · Houston → Chicago' },
+  { id: '4', name: 'INV-2026-0089-ABC.pdf', type: 'invoice', loadNumber: 1583, status: 'ready', createdAt: '2026-07-17', size: '312 KB', extractedData: 'Invoice #0089 · $1,875 · Due Aug 1' },
+  { id: '5', name: 'CP-LoneStarTrucking.pdf', type: 'carrier_packet', loadNumber: 0, status: 'ready', createdAt: '2026-07-15', size: '2.1 MB' },
+  { id: '6', name: 'RC-1586-EagleFreight.pdf', type: 'rate_confirmation', loadNumber: 1586, status: 'ready', createdAt: '2026-07-18', size: '248 KB', extractedData: 'Load #1586 · $2,890 · Miami → Nashville' },
+  { id: '7', name: 'BOL-1581-PacificCoast.pdf', type: 'bol', loadNumber: 1581, status: 'pending', createdAt: '2026-07-19', size: '192 KB' },
 ]

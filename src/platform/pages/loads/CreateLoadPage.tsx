@@ -1,17 +1,41 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Sparkles, MapPin, Truck, Calendar, Weight, FileText } from 'lucide-react'
 import { useLanguage } from '../../../i18n/LanguageContext'
+import { useInboxStore } from '../../store'
+import { mockCustomers } from '../../data/mock'
+import { createLoad, parseLoadFromText } from '../../services/workflow'
+import { suggestPrice } from '../../services/pricing'
+import { hasGitHubToken, completeChat } from '../../ai/githubModels'
+
+interface NavState {
+  sourceEmailId?: string
+  emailFrom?: string
+  draft?: {
+    origin: string; originState: string; destination: string; destinationState: string
+    weight: number; equipment: string; commodity: string
+    suggestedPrice?: number; confidence?: number
+  }
+}
 
 export function CreateLoadPage() {
   const navigate = useNavigate()
-  const { tp } = useLanguage()
+  const location = useLocation()
+  const { tp, language } = useLanguage()
+  const navState = (location.state || {}) as NavState
+  const updateInboxItem = useInboxStore((s) => s.updateItem)
   const [aiMode, setAiMode] = useState(false)
   const [aiInput, setAiInput] = useState('')
-  const [form, setForm] = useState({
-    customer: '', origin: '', destination: '', commodity: '', weight: '',
-    equipment: 'Dry Van', pickupDate: '', deliveryDate: '', notes: '',
+  const [form, setForm] = useState(() => {
+    if (navState.draft) {
+      return {
+        customer: '', origin: navState.draft.origin, destination: navState.draft.destination,
+        commodity: navState.draft.commodity, weight: String(navState.draft.weight),
+        equipment: navState.draft.equipment, pickupDate: '', deliveryDate: '', notes: '',
+      }
+    }
+    return { customer: '', origin: '', destination: '', commodity: '', weight: '', equipment: 'Dry Van', pickupDate: '', deliveryDate: '', notes: '' }
   })
   const [loading, setLoading] = useState(false)
 
@@ -20,12 +44,45 @@ export function CreateLoadPage() {
   const handleAICreate = async () => {
     if (!aiInput.trim()) return
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 1500))
-    setForm({
-      customer: 'ABC Logistics', origin: 'Dallas, TX', destination: 'Atlanta, GA',
-      commodity: 'Food Products', weight: '43000', equipment: 'Dry Van',
-      pickupDate: '2026-07-20', deliveryDate: '2026-07-21', notes: '',
-    })
+
+    let parsed = parseLoadFromText(aiInput)
+
+    if (hasGitHubToken()) {
+      try {
+        const res = await completeChat([{
+          role: 'user',
+          content: `Extract load details from this text as strict JSON only (no prose), keys: origin, destination, weight (number, no units), equipment (one of Dry Van/Reefer/Flatbed/Step Deck/Lowboy), commodity, pickupDate (YYYY-MM-DD, today is ${new Date().toISOString().slice(0, 10)}), deliveryDate (YYYY-MM-DD). Use empty string for unknown fields. Text: "${aiInput}"`,
+        }])
+        if (res.content) {
+          const jsonMatch = res.content.match(/\{[\s\S]*\}/)
+          if (jsonMatch) {
+            const ai = JSON.parse(jsonMatch[0])
+            parsed = {
+              origin: ai.origin || parsed.origin,
+              destination: ai.destination || parsed.destination,
+              weight: ai.weight ? String(ai.weight) : parsed.weight,
+              equipment: ai.equipment || parsed.equipment,
+              commodity: ai.commodity || parsed.commodity,
+              pickupDate: ai.pickupDate || parsed.pickupDate,
+              deliveryDate: ai.deliveryDate || parsed.deliveryDate,
+            }
+          }
+        }
+      } catch {
+        // fall back silently to the heuristic parse above
+      }
+    }
+
+    setForm((f) => ({
+      ...f,
+      origin: parsed.origin || f.origin,
+      destination: parsed.destination || f.destination,
+      weight: parsed.weight || f.weight,
+      equipment: parsed.equipment || f.equipment,
+      commodity: parsed.commodity || f.commodity,
+      pickupDate: parsed.pickupDate || f.pickupDate,
+      deliveryDate: parsed.deliveryDate || f.deliveryDate,
+    }))
     setAiMode(false)
     setLoading(false)
   }
@@ -33,8 +90,36 @@ export function CreateLoadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    await new Promise((r) => setTimeout(r, 1000))
-    navigate('/app/loads/1')
+    await new Promise((r) => setTimeout(r, 600))
+
+    const matchedCustomer = mockCustomers.find((c) => c.company.toLowerCase() === form.customer.toLowerCase() || c.name.toLowerCase() === form.customer.toLowerCase())
+    const pricing = suggestPrice({
+      origin: form.origin, destination: form.destination, equipment: form.equipment,
+      customerRecommendedPrice: navState.draft?.suggestedPrice,
+      customerConfidence: navState.draft?.confidence,
+    })
+
+    const load = createLoad({
+      status: 'pending',
+      customer: matchedCustomer?.company || form.customer || 'New Customer',
+      customerId: matchedCustomer?.id || '0',
+      origin: form.origin, originState: navState.draft?.originState || form.origin.split(',')[1]?.trim() || '',
+      destination: form.destination, destinationState: navState.draft?.destinationState || form.destination.split(',')[1]?.trim() || '',
+      commodity: form.commodity || 'General Freight',
+      weight: Number(form.weight) || 0,
+      equipment: form.equipment,
+      pickupDate: form.pickupDate, deliveryDate: form.deliveryDate,
+      buyRate: pricing.buyRate,
+      sellRate: navState.draft?.suggestedPrice || pricing.sellRate,
+      margin: (navState.draft?.suggestedPrice || pricing.sellRate) - pricing.buyRate,
+      mileage: pricing.mileage, tracking: 0,
+      notes: form.notes || undefined,
+    }, { aiGenerated: !!navState.draft, sourceEmail: navState.emailFrom })
+
+    if (navState.sourceEmailId) updateInboxItem(navState.sourceEmailId, { status: 'created' })
+
+    setLoading(false)
+    navigate(`/app/loads/${load.id}`)
   }
 
   return (
@@ -48,6 +133,17 @@ export function CreateLoadPage() {
           <p className="mt-1 text-sm text-white/50">{tp.createLoad.subtitle}</p>
         </div>
       </motion.div>
+
+      {navState.draft && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 rounded-xl border border-orange-500/20 bg-orange-500/5 px-4 py-3 text-sm text-orange-300">
+          <Sparkles className="h-4 w-4 shrink-0" />
+          <span>
+            {language === 'es'
+              ? `Prellenado por IA desde el email de ${navState.emailFrom}. Revisá y confirmá.`
+              : `Prefilled by AI from ${navState.emailFrom}'s email. Review and confirm.`}
+          </span>
+        </motion.div>
+      )}
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
         <button

@@ -5,7 +5,8 @@ import {
   ArrowLeft, Mail, Phone, MessageSquare, TrendingUp, Truck,
   DollarSign, Calendar, Building2, ExternalLink, Star, Clock, Brain,
 } from 'lucide-react'
-import { mockCustomers, mockLoads, mockInvoices, mockCustomerAI } from '../../data/mock'
+import { mockCustomers, mockCustomerAI } from '../../data/mock'
+import { useLoadsStore, useInvoicesStore } from '../../store'
 import { useLanguage } from '../../../i18n/LanguageContext'
 import { useToast } from '../../components/Toast'
 
@@ -17,6 +18,8 @@ export function CustomerDetailPage() {
   const customer = mockCustomers.find((c) => c.id === customerId)
   const customerAI = mockCustomerAI.find((a) => a.customerId === customerId)
   const [activeTab, setActiveTab] = useState<'loads' | 'invoices' | 'activity'>('loads')
+  const loads = useLoadsStore((s) => s.loads)
+  const invoices = useInvoicesStore((s) => s.invoices)
 
   if (!customer) {
     return (
@@ -30,8 +33,8 @@ export function CustomerDetailPage() {
     )
   }
 
-  const customerLoads = mockLoads.filter((l) => l.customerId === customer.id)
-  const customerInvoices = mockInvoices.filter((i) => i.customerId === customer.id)
+  const customerLoads = loads.filter((l) => l.customerId === customer.id)
+  const customerInvoices = invoices.filter((i) => i.customerId === customer.id)
   const avgMargin = customerLoads.length > 0
     ? Math.round(customerLoads.reduce((a, l) => a + l.margin, 0) / customerLoads.length)
     : 0
